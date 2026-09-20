@@ -3,7 +3,7 @@
 verify: verify-scala verify-python
 
 verify-scala:
-	cd streaming-engine && sbt scalafmtCheckAll compile test
+	cd streaming-engine && sbt "scalafmtCheckAll ; compile ; test"
 
 verify-python:
 	cd model-control-plane && uv sync --locked --group dev

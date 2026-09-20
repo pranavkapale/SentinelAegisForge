@@ -16,7 +16,7 @@ The repository is in **Phase 0 — Engineering Foundation**. It currently provid
 Prerequisites:
 
 - JDK 21 LTS
-- sbt 1.13.0 (selected by the build)
+- sbt 2.0.9 (selected by the build)
 - Python 3.13
 - [uv](https://docs.astral.sh/uv/)
 - GNU Make

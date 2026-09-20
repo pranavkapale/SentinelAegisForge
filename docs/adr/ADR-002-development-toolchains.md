@@ -16,7 +16,7 @@ Streaming engine:
 
 - Scala 2.13.18
 - JDK 21 LTS
-- sbt 1.13.0
+- sbt 2.0.9
 - ScalaTest
 - Scalafmt
 
@@ -31,6 +31,8 @@ Model control plane:
 Versions are pinned in module configuration or the Python lockfile where appropriate. Root `make` targets and CI expose the same checks.
 
 JDK 21 is the selected modern LTS JVM baseline for the planned Spark 4.x streaming system. Python 3.13 is the current model control plane runtime baseline. Critical Python dependencies must be checked for Python 3.13 compatibility before adoption; a genuine future incompatibility requires a documented decision rather than a silent runtime downgrade.
+
+The sbt 2.0.9 baseline was adopted after validating the existing Scala 2.13 build syntax and upgrading the sole build plugin, sbt-scalafmt, from 2.5.5 to the sbt 2-compatible 2.6.2 release.
 
 Runtime and data technologies are intentionally deferred until a concrete requirement needs them and their operational implications can be evaluated.
 

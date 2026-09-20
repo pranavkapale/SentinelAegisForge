@@ -4,6 +4,8 @@ project/target/
 project/project/
 .bsp/
 .metals/
+.bloop/
+metals.sbt
 .scala-build/
 
 # Python

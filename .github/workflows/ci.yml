@@ -26,7 +26,7 @@ jobs:
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
       - name: Check formatting, compile, and test
-        run: sbt scalafmtCheckAll compile test
+        run: sbt "scalafmtCheckAll ; compile ; test"
 
   python:
     name: Python foundation
