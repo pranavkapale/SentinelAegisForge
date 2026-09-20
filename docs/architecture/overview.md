@@ -2,13 +2,13 @@
 
 ## Current architecture
 
-Phase 0 contains two independently buildable module foundations in one repository:
+Phase 1 builds on two independently buildable module foundations in one repository:
 
-- `streaming-engine` is a Scala 2.13/JDK 21 build with ScalaTest and Scalafmt. It contains no runtime or domain implementation.
+- `streaming-engine` is a Scala 2.13/JDK 21 build with a version 1 transaction domain contract, pure candidate validation, and a deterministic seeded simulator. It contains no streaming runtime or fraud decisioning.
 - `model-control-plane` is a Python 3.13 package with pytest, Ruff, and mypy. It contains no model lifecycle or domain implementation.
 - Root verification, repository hygiene, baseline CI, this architecture overview, and architecture decision records provide shared engineering conventions.
 
-The modules do not communicate and no transaction, streaming, storage, fraud-decisioning, or ML capability exists yet.
+The modules do not communicate. No transport, streaming, storage, fraud-decisioning, or ML capability exists yet.
 
 ## Target architecture
 

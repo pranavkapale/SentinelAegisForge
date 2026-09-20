@@ -1,6 +1,6 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 0 establishes reproducible Scala and Python engineering foundations only; no transaction processing, fraud decisioning, streaming infrastructure, or model lifecycle behavior is implemented yet.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 1 adds a validated transaction event contract and deterministic simulator to the engineering foundation; no transaction streaming, fraud decisioning, or model lifecycle behavior is implemented yet.
 
 ## Modules
 
@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 0 — Engineering Foundation**. It currently provides pinned build tools, formatting, static analysis, smoke tests, baseline CI, architecture documentation, and ADRs. The runtime technologies and domain behavior described above remain future architecture.
+The repository is in **Phase 1 — Event Contract and Simulator**. Module A now provides a transport-independent transaction candidate, typed v1 validation boundary, and deterministic simulator. Kafka, Spark, serialization, and fraud behavior remain future architecture.
 
 ## Local development
 
@@ -29,4 +29,4 @@ make verify
 
 Run a module's checks independently with `make verify-scala` or `make verify-python`.
 
-See the [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
+See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).

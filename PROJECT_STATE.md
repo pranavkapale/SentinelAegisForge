@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 0 — Engineering Foundation
+Phase 1 — Event Contract and Simulator
 
-The Phase 0 foundation is functionally complete. This state includes the narrow runtime-baseline correction to JDK 21 and Python 3.13; no Phase 1 functionality has begun.
+The verified Phase 0 foundation remains intact. Step 1 adds a transport-independent version 1 transaction contract, validation boundary, and deterministic simulator; no Phase 2 functionality has begun.
 
 ## Implemented Capabilities
 
@@ -13,12 +13,17 @@ The Phase 0 foundation is functionally complete. This state includes the narrow 
 - Formatting, unit-test, lint, and static-analysis configuration.
 - Root verification targets and baseline GitHub Actions CI.
 - Architecture overview and lightweight ADR process.
+- Typed `TransactionEvent` v1 domain model with distinct business-event and transaction identities.
+- Untrusted `TransactionEventCandidate` representation and pure, accumulative typed validation.
+- Deterministic seeded candidate generator with explicit base-time configuration.
+- Reusable named invalid candidate scenarios for contract violations.
+- Behavior-focused contract and simulator tests.
 
-No streaming, fraud decisioning, persistence, model lifecycle, or other runtime capability is implemented.
+No transport, streaming, fraud decisioning, persistence, model lifecycle, or other runtime capability is implemented.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM build and temporary foundation smoke test only.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, and focused tests. It has no Kafka, Spark, serialization, or fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, hygiene, CI, and project-state metadata.
@@ -34,6 +39,7 @@ The modules have no runtime integration.
 
 - [ADR-001: Monorepo module boundaries](docs/adr/ADR-001-monorepo-module-boundaries.md)
 - [ADR-002: Development toolchains](docs/adr/ADR-002-development-toolchains.md)
+- [ADR-003: Transaction event domain boundary](docs/adr/ADR-003-transaction-event-domain-boundary.md)
 
 ## Verification Status
 
@@ -79,20 +85,34 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify-scala`, `make verify-python`, and `make verify`: passed. The Makefile and CI use sbt 2's required quoted, semicolon-separated multi-command syntax.
 - `git diff --check`: passed after the sbt 2 migration and final verification updates.
 
+### Step 1 verification
+
+- `sbt "clean ; compile"`: passed under Temurin JDK 21.0.12.1, Scala 2.13.18, and sbt 2.0.9; 9 production Scala sources compiled.
+- `sbt test`: passed; 10 tests passed across `TransactionEventValidatorSpec` and `DeterministicTransactionGeneratorSpec`.
+- `sbt scalafmtCheckAll`: passed for 9 production and 2 test Scala sources.
+- `make verify-scala`: passed under the explicitly selected JDK 21 environment.
+- `make verify-python`: passed under Python 3.13.9; 1 pytest test passed, Ruff lint and format checks passed, and mypy reported no issues.
+- `make verify`: passed for both independently buildable modules.
+- `git diff --check`: passed after all Step 1 implementation and documentation changes.
+
 ## Known Technical Debt
 
-- The temporary Scala and Python foundation smoke tests should be removed once substantive tests provide equivalent build-wiring coverage.
+- The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 
 ## Known Failures
 
-No current Phase 0 build or verification failures are known. During the sbt 2 migration, the first compatibility probe correctly failed because sbt-scalafmt 2.5.5 had no sbt 2 artifact; upgrading the plugin to 2.6.2 resolved that incompatibility.
+No current Phase 0 or Step 1 build or verification failures are known.
 
 ## Deferred Decisions
 
-- Transaction event contract.
-- Serialization and schema strategy.
+- Serialization format and schema strategy.
+- Schema Registry selection.
 - Kafka topology.
 - Kafka partition key.
+- Kafka metadata model.
+- Watermark and late-event semantics.
+- Deduplication boundaries and policy.
+- Dead-letter queue routing and behavior.
 - Spark version and runtime dependencies.
 - Delta write and idempotency strategy.
 - Streaming state design.
@@ -100,6 +120,4 @@ No current Phase 0 build or verification failures are known. During the sbt 2 mi
 
 ## Next Planned Capability
 
-Define and evaluate the transaction event contract in a later phase. No contract work is included in Phase 0.
-
-The next functional milestone remains deferred; this runtime-baseline correction does not begin Phase 1.
+Step 1 is implemented and verified. No Phase 2 capability is implemented or selected here.
