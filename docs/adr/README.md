@@ -37,3 +37,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-001: Monorepo module boundaries](ADR-001-monorepo-module-boundaries.md)
 - [ADR-002: Development toolchains](ADR-002-development-toolchains.md)
 - [ADR-003: Transaction event domain boundary](ADR-003-transaction-event-domain-boundary.md)
+- [ADR-004: Local Kafka runtime](ADR-004-local-kafka-runtime.md)

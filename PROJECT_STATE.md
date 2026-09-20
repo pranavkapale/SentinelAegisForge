@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 1 — Event Contract and Simulator
+Phase 2 — Local Kafka Infrastructure
 
-The verified Phase 0 foundation remains intact. Step 1 adds a transport-independent version 1 transaction contract, validation boundary, and deterministic simulator; no Phase 2 functionality has begun.
+The verified Phase 0 and Phase 1 foundations remain intact. Step 2 adds pinned local Kafka infrastructure configuration. Live broker verification is pending because the installed Docker Desktop daemon is not running.
 
 ## Implemented Capabilities
 
@@ -18,17 +18,23 @@ The verified Phase 0 foundation remains intact. Step 1 adds a transport-independ
 - Deterministic seeded candidate generator with explicit base-time configuration.
 - Reusable named invalid candidate scenarios for contract violations.
 - Behavior-focused contract and simulator tests.
+- Pinned `apache/kafka:4.3.1` single-node KRaft Compose configuration.
+- Separate host (`localhost:9092`) and Compose-network (`kafka:19092`) broker listeners.
+- Idempotent explicit provisioning configuration for `transactions.raw` with three partitions and replication factor one.
+- Docker-managed broker data volume with separate stop and destructive reset commands.
+- Infrastructure lifecycle and Kafka metadata verification interfaces.
 
-No transport, streaming, fraud decisioning, persistence, model lifecycle, or other runtime capability is implemented.
+No application producer, consumer, serialization, streaming processing, fraud decisioning, application persistence, model lifecycle, or other runtime capability is implemented. The Kafka runtime and topic configuration have not yet been exercised because the local Docker daemon is unavailable.
 
 ## Current Architecture
 
 - `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, and focused tests. It has no Kafka, Spark, serialization, or fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
+- Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller and one explicitly provisioned application topic, `transactions.raw`.
 - `docs`: shared architecture overview and accepted ADRs.
-- Repository root: shared verification, hygiene, CI, and project-state metadata.
+- Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The modules have no runtime integration.
+The modules have no runtime integration with Kafka or each other.
 
 ## Runtime Baseline
 
@@ -40,6 +46,7 @@ The modules have no runtime integration.
 - [ADR-001: Monorepo module boundaries](docs/adr/ADR-001-monorepo-module-boundaries.md)
 - [ADR-002: Development toolchains](docs/adr/ADR-002-development-toolchains.md)
 - [ADR-003: Transaction event domain boundary](docs/adr/ADR-003-transaction-event-domain-boundary.md)
+- [ADR-004: Local Kafka runtime](docs/adr/ADR-004-local-kafka-runtime.md)
 
 ## Verification Status
 
@@ -95,29 +102,47 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify`: passed for both independently buildable modules.
 - `git diff --check`: passed after all Step 1 implementation and documentation changes.
 
+### Step 2 verification
+
+- `docker --version`: passed and reported Docker 29.7.2.
+- `docker compose version`: passed and reported Docker Compose v5.5.0.
+- `docker version`: the client reported version 29.7.2, but daemon access failed because the selected Docker Desktop socket does not exist.
+- `docker compose config --quiet`: passed; the Compose model is syntactically valid.
+- `bash -n scripts/verify-local-kafka.sh`: passed.
+- `make infra-up`: blocked before container creation because the Docker daemon is not running.
+- `make infra-status`: blocked because the Docker daemon is not running.
+- `make verify-infra`: blocked and clearly reported that Kafka is unavailable.
+- Normal-stop persistence, restart, topic metadata, and clean-reset/reprovision checks could not run without the Docker daemon.
+- `make verify-scala`: passed under Temurin JDK 21.0.12.1 and sbt 2.0.9.
+- Explicit `sbt "Test / testOnly *"`: passed; all 10 Phase 1 Scala tests passed across 2 suites.
+- `make verify-python`: passed under Python 3.13.9; pytest, Ruff, and mypy passed.
+- `make verify`: passed for both independently buildable modules and did not start infrastructure.
+- `git diff --check`: passed after all Step 2 implementation and documentation changes.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 
 ## Known Failures
 
-No current Phase 0 or Step 1 build or verification failures are known.
+No current Phase 0 or Step 1 build or verification failures are known. Phase 2 live infrastructure verification is blocked by the unavailable Docker daemon; this is a local prerequisite issue, not an observed Kafka configuration failure.
 
 ## Deferred Decisions
 
 - Serialization format and schema strategy.
 - Schema Registry selection.
-- Kafka topology.
 - Kafka partition key.
 - Kafka metadata model.
+- Kafka producer and consumer integration.
+- Production Kafka topology, replication, retention sizing, and security.
 - Watermark and late-event semantics.
 - Deduplication boundaries and policy.
 - Dead-letter queue routing and behavior.
 - Spark version and runtime dependencies.
-- Delta write and idempotency strategy.
+- Delta/MinIO persistence and idempotency strategy.
 - Streaming state design.
 - ML runtime contract.
 
 ## Next Planned Capability
 
-Step 1 is implemented and verified. No Phase 2 capability is implemented or selected here.
+Phase 2 configuration is implemented, but the local Kafka runtime remains unverified until a Docker daemon is available. No Phase 3 capability is implemented or selected here.

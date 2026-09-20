@@ -2,13 +2,14 @@
 
 ## Current architecture
 
-Phase 1 builds on two independently buildable module foundations in one repository:
+Phase 2 builds on two independently buildable module foundations in one repository:
 
 - `streaming-engine` is a Scala 2.13/JDK 21 build with a version 1 transaction domain contract, pure candidate validation, and a deterministic seeded simulator. It contains no streaming runtime or fraud decisioning.
 - `model-control-plane` is a Python 3.13 package with pytest, Ruff, and mypy. It contains no model lifecycle or domain implementation.
+- The repository root provides a pinned, single-node Apache Kafka 4.3.1 KRaft environment for local development. It explicitly provisions only `transactions.raw`; no producer, consumer, or serialization contract exists.
 - Root verification, repository hygiene, baseline CI, this architecture overview, and architecture decision records provide shared engineering conventions.
 
-The modules do not communicate. No transport, streaming, storage, fraud-decisioning, or ML capability exists yet.
+The modules do not communicate. Kafka infrastructure exists locally, but no application transport integration, streaming processing, durable application storage, fraud decisioning, or ML capability exists yet.
 
 ## Target architecture
 

@@ -1,6 +1,6 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 1 adds a validated transaction event contract and deterministic simulator to the engineering foundation; no transaction streaming, fraud decisioning, or model lifecycle behavior is implemented yet.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 2 adds reproducible local Kafka infrastructure to the validated transaction contract and deterministic simulator; no transaction producer, streaming processing, fraud decisioning, or model lifecycle behavior is implemented yet.
 
 ## Modules
 
@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 1 — Event Contract and Simulator**. Module A now provides a transport-independent transaction candidate, typed v1 validation boundary, and deterministic simulator. Kafka, Spark, serialization, and fraud behavior remain future architecture.
+The repository is in **Phase 2 — Local Kafka Infrastructure**. Module A provides a transport-independent transaction candidate, typed v1 validation boundary, and deterministic simulator. A single-node local Apache Kafka environment now provisions `transactions.raw`; Kafka producer/consumer integration, Spark, serialization, and fraud behavior remain future architecture.
 
 ## Local development
 
@@ -20,6 +20,7 @@ Prerequisites:
 - Python 3.13
 - [uv](https://docs.astral.sh/uv/)
 - GNU Make
+- Docker with Docker Compose (only for local Kafka infrastructure)
 
 Run all foundation checks from the repository root:
 
@@ -29,4 +30,15 @@ make verify
 
 Run a module's checks independently with `make verify-scala` or `make verify-python`.
 
-See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
+Start and verify the local Kafka environment separately:
+
+```sh
+make infra-up
+make infra-status
+make verify-infra
+make infra-down
+```
+
+`make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
+
+See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
