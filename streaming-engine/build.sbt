@@ -14,6 +14,17 @@ lazy val root = (project in file("."))
       "-release:21"
     ),
     javacOptions ++= Seq("--release", "21", "-encoding", "UTF-8"),
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+    libraryDependencies ++= Seq(
+      "org.apache.avro" % "avro" % "1.12.2",
+      "org.scalatest" %% "scalatest" % "3.2.19" % Test
+    ),
+    Compile / resourceGenerators += Def.task {
+      val source =
+        baseDirectory.value.getParentFile / "contracts" / "events" / "transaction-event-v1.avsc"
+      val target =
+        (Compile / resourceManaged).value / "contracts" / "events" / "transaction-event-v1.avsc"
+      IO.copyFile(source, target)
+      Seq(target)
+    }.taskValue,
     Test / parallelExecution := false
   )

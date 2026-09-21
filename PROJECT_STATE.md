@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 2 — Local Kafka Infrastructure
+Phase 3 — Kafka Wire Contract & Partitioning
 
-The verified Phase 0 and Phase 1 foundations remain intact. Step 2 adds pinned local Kafka infrastructure configuration. Live broker verification is pending because the installed Docker Desktop daemon is not running.
+The verified Phase 0, Phase 1, and Phase 2 foundations remain intact. Step 3 adds the canonical Avro transaction wire contract, explicit validated domain-to-wire mapping, compatibility tests, and the `customer_id` Kafka key decision. It does not add producer, consumer, or Schema Registry runtime behavior.
 
 ## Implemented Capabilities
 
@@ -23,14 +23,20 @@ The verified Phase 0 and Phase 1 foundations remain intact. Step 2 adds pinned l
 - Idempotent explicit provisioning configuration for `transactions.raw` with three partitions and replication factor one.
 - Docker-managed broker data volume with separate stop and destructive reset commands.
 - Infrastructure lifecycle and Kafka metadata verification interfaces.
+- Canonical Apache Avro transaction-event v1 schema.
+- Explicit domain-to-Avro mapping and validation-preserving Avro-to-domain mapping.
+- Deterministic local Avro binary round-trip with explicit decimal and timestamp precision rules.
+- Apache Avro reader/writer schema compatibility tests.
+- UTF-8 `customer_id` partition-key contract with documented ordering, skew, and partition-expansion boundaries.
 
-No application producer, consumer, serialization, streaming processing, fraud decisioning, application persistence, model lifecycle, or other runtime capability is implemented. The Kafka runtime and topic configuration have not yet been exercised because the local Docker daemon is unavailable.
+No application producer, consumer, Schema Registry integration, streaming processing, fraud decisioning, application persistence, model lifecycle, or other runtime capability is implemented. The local Kafka runtime and topic lifecycle remain verified independently of application behavior.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, and focused tests. It has no Kafka, Spark, serialization, or fraud-processing runtime.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, and focused tests. It has no Kafka client, Spark, registry-backed serialization, or fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller and one explicitly provisioned application topic, `transactions.raw`.
+- Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
@@ -47,6 +53,8 @@ The modules have no runtime integration with Kafka or each other.
 - [ADR-002: Development toolchains](docs/adr/ADR-002-development-toolchains.md)
 - [ADR-003: Transaction event domain boundary](docs/adr/ADR-003-transaction-event-domain-boundary.md)
 - [ADR-004: Local Kafka runtime](docs/adr/ADR-004-local-kafka-runtime.md)
+- [ADR-005: Transaction event serialization](docs/adr/ADR-005-transaction-event-serialization.md)
+- [ADR-006: Kafka transaction partition key](docs/adr/ADR-006-kafka-transaction-partition-key.md)
 
 ## Verification Status
 
@@ -119,21 +127,45 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify`: passed for both independently buildable modules and did not start infrastructure.
 - `git diff --check`: passed after all Step 2 implementation and documentation changes.
 
+### Phase 2 runtime verification closure
+
+- Docker Desktop 4.89.0 was reachable with Docker Engine 29.7.2 and Docker Compose v5.5.0.
+- `docker compose config --quiet`: passed; the rendered configuration retained the pinned `apache/kafka:4.3.1` image, KRaft roles, expected listeners, named data volume, and single application-topic initializer.
+- A clean `make infra-up` passed: Kafka became healthy, `kafka-init` completed, and `verify-infra` passed.
+- Live topic metadata reported `transactions.raw` with 3 partitions, replication factor 1, leaders present, and in-sync replicas present.
+- The live broker configuration reported `auto.create.topics.enable=false`, `process.roles=broker,controller`, the expected advertised listeners, and `/var/lib/kafka/data` as the configured log directory.
+- The host listener answered a Kafka API metadata operation at `localhost:9092`; the internal listener supported all provisioning and verification operations at `kafka:19092`/`localhost:19092` from the Compose network/container.
+- Container inspection reported `running`, `healthy`, and zero restarts. Broker logs contained no `ERROR`, `FATAL`, exception, or `WARN` entries and showed normal KRaft startup.
+- Non-destructive `infra-down` removed the project container/network but retained `sentinelaegisforge_kafka-data`; the following `infra-up` preserved topic ID `cvX19qxwT3OmhxMQbrVYhw` and the expected 3-by-1 metadata.
+- `infra-reset` removed only the project Compose resources and Kafka volume. A subsequent `infra-up` recreated the volume and topic with new topic ID `786Qr11kQF6hZ_5hA2ANJQ` and the expected 3-by-1 metadata.
+- Rerunning `kafka-init` with the topic already present succeeded, preserved its topic ID and partition count, and was followed by a passing `verify-infra`.
+- The final `infra-down` preserved the recreated Kafka volume. `make verify-scala`, all 10 explicit Scala tests, `make verify-python`, and `make verify` passed while no Kafka container was running.
+- `git diff --check`: passed after the runtime-verification state update.
+
+### Step 3 verification
+
+- Apache Avro `1.12.2` resolved and compiled under Temurin JDK 21.0.12.1, Scala 2.13.18, and sbt 2.0.9.
+- `sbt "clean ; compile"`: passed using the sbt 2 multi-command syntax.
+- `sbt "Test / testOnly *"`: passed; 22 tests passed across 4 suites, including all prior Phase 1 tests and the new domain-wire, codec, compatibility, precision, and generator-integration tests.
+- `sbt scalafmtCheckAll`: passed for 14 production and 4 test Scala sources.
+- `make verify-scala`: passed under JDK 21; the immediately preceding forced suite had already run all 22 tests, so sbt's incremental test invocation had no changed tests to rerun.
+- `make verify-python`: passed under Python 3.13.9; 1 pytest test passed, Ruff lint and formatting passed, and mypy reported no issues.
+- `make verify`: passed for both independently buildable modules without requiring Kafka or Docker.
+- `git diff --check`: passed before the final project-state update and was rerun afterward.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 
 ## Known Failures
 
-No current Phase 0 or Step 1 build or verification failures are known. Phase 2 live infrastructure verification is blocked by the unavailable Docker daemon; this is a local prerequisite issue, not an observed Kafka configuration failure.
+No current Phase 0, Phase 1, Phase 2, or Phase 3 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
-- Serialization format and schema strategy.
-- Schema Registry selection.
-- Kafka partition key.
+- Schema Registry runtime and final registry-backed Kafka framing.
 - Kafka metadata model.
-- Kafka producer and consumer integration.
+- Kafka producer acknowledgements, retries, idempotence, and producer/consumer integration.
 - Production Kafka topology, replication, retention sizing, and security.
 - Watermark and late-event semantics.
 - Deduplication boundaries and policy.
@@ -145,4 +177,4 @@ No current Phase 0 or Step 1 build or verification failures are known. Phase 2 l
 
 ## Next Planned Capability
 
-Phase 2 configuration is implemented, but the local Kafka runtime remains unverified until a Docker daemon is available. No Phase 3 capability is implemented or selected here.
+Phase 3 wire-contract and partitioning semantics are implemented and fully verified. No Phase 4 capability is implemented here.

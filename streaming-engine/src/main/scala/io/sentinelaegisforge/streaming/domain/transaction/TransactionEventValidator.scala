@@ -6,6 +6,10 @@ import java.util.UUID
 import scala.util.Try
 
 import io.sentinelaegisforge.streaming.domain.transaction.TransactionField._
+import io.sentinelaegisforge.streaming.domain.transaction.TransactionEventV1Contract.{
+  AmountPrecision,
+  AmountScale
+}
 import io.sentinelaegisforge.streaming.domain.transaction.TransactionValidationError._
 
 object TransactionEventValidator {
@@ -136,7 +140,7 @@ object TransactionEventValidator {
       ]]
   ): Option[BigDecimal] =
     Try(BigDecimal(value)).toOption match {
-      case Some(parsed) if parsed > 0 => Some(parsed)
+      case Some(parsed) if parsed > 0 => validateAmountRepresentation(parsed, errors)
       case Some(parsed)               =>
         errors += NonPositiveAmount(parsed)
         None
@@ -144,6 +148,27 @@ object TransactionEventValidator {
         errors += MalformedAmount(value)
         None
     }
+
+  private def validateAmountRepresentation(
+      amount: BigDecimal,
+      errors: scala.collection.mutable.Builder[TransactionValidationError, Vector[
+        TransactionValidationError
+      ]]
+  ): Option[BigDecimal] = {
+    val normalized = amount.bigDecimal.stripTrailingZeros()
+    if (normalized.scale() > AmountScale) {
+      errors += AmountScaleExceeded(amount, AmountScale)
+      None
+    } else {
+      val wireValue = normalized.setScale(AmountScale)
+      if (wireValue.precision() > AmountPrecision) {
+        errors += AmountPrecisionExceeded(amount, AmountPrecision, AmountScale)
+        None
+      } else {
+        Some(amount)
+      }
+    }
+  }
 
   private def parseTransactionType(
       value: String,
@@ -165,7 +190,8 @@ object TransactionEventValidator {
       ]]
   ): Option[Int] =
     Try(value.toInt).toOption match {
-      case Some(1)     => Some(1)
+      case Some(TransactionEventV1Contract.SchemaVersion) =>
+        Some(TransactionEventV1Contract.SchemaVersion)
       case Some(other) =>
         errors += UnsupportedSchemaVersion(other)
         None

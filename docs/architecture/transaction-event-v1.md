@@ -12,7 +12,7 @@
 - `merchant_id`: merchant reference; `String`; required and non-blank.
 - `event_time`: when the transaction occurrence happened; `java.time.Instant`; required and parseable using the standard instant format.
 - `ingestion_time`: when the candidate entered the platform boundary; `java.time.Instant`; required and parseable using the standard instant format.
-- `amount`: transaction amount; `scala.math.BigDecimal`; required, parseable as a decimal, and greater than zero for `CARD_PAYMENT` in v1.
+- `amount`: transaction amount; `scala.math.BigDecimal`; required, parseable as a decimal, greater than zero for `CARD_PAYMENT`, and representable as `decimal(18,4)` without rounding.
 - `currency`: currency code-shaped value; `String`; exactly three uppercase ASCII letters. This is a format check, not full ISO-4217 membership validation.
 - `country`: country code-shaped value; `String`; exactly two uppercase ASCII letters. This is a format check, not full ISO country membership validation.
 - `device_id`: device reference; `String`; required and non-blank.
@@ -40,15 +40,15 @@ trusted typed TransactionEvent
 
 Candidates retain optional string values so missing and malformed boundary data can be represented without exceptions. Validation collects independent typed errors where practical. Only a candidate with no errors becomes a `TransactionEvent`.
 
+The external representation is now defined separately by the canonical [transaction wire contract](transaction-wire-contract.md). Avro decoding maps back to a candidate and crosses this validation boundary; it does not call the restricted domain constructor directly.
+
 ## Explicitly deferred decisions
 
-This contract does not select or implement:
+This domain contract does not implement:
 
-- JSON, Avro, or Protobuf;
 - Schema Registry;
-- Kafka topics or partition keys;
 - Kafka metadata representation;
 - watermark or late-event policy;
 - deduplication policy;
 - dead-letter queue behavior;
-- schema compatibility mechanisms.
+- producer or consumer behavior.

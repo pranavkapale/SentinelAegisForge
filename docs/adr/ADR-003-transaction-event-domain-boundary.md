@@ -28,3 +28,5 @@ The boundary adds explicit mapping and validation code. In return, it creates a 
 ## Consequences
 
 Future Kafka or serialization code must map decoded values into `TransactionEventCandidate` and invoke validation before downstream processing. New contract versions or transaction types require deliberate domain changes. Serialization format, compatibility policy, Kafka topology, partitioning, and failure routing remain separate decisions.
+
+ADR-005 and ADR-006 subsequently select the Avro value contract and `customer_id` key while preserving this validation boundary.

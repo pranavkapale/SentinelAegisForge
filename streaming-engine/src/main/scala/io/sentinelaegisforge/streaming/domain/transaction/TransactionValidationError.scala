@@ -27,6 +27,16 @@ object TransactionValidationError {
     override val field: TransactionField = TransactionField.Amount
   }
 
+  final case class AmountScaleExceeded(value: BigDecimal, maximumScale: Int)
+      extends TransactionValidationError {
+    override val field: TransactionField = TransactionField.Amount
+  }
+
+  final case class AmountPrecisionExceeded(value: BigDecimal, precision: Int, scale: Int)
+      extends TransactionValidationError {
+    override val field: TransactionField = TransactionField.Amount
+  }
+
   final case class InvalidCurrencyFormat(value: String) extends TransactionValidationError {
     override val field: TransactionField = TransactionField.Currency
   }

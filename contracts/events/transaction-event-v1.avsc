@@ -1,0 +1,74 @@
+{
+  "type": "record",
+  "name": "TransactionEventV1",
+  "namespace": "io.sentinelaegisforge.contracts.events",
+  "doc": "Validated SentinelAegisForge transaction event contract, version 1.",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "transaction_id",
+      "type": "string"
+    },
+    {
+      "name": "customer_id",
+      "type": "string"
+    },
+    {
+      "name": "merchant_id",
+      "type": "string"
+    },
+    {
+      "name": "event_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "ingestion_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-micros"
+      }
+    },
+    {
+      "name": "amount",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 4
+      }
+    },
+    {
+      "name": "currency",
+      "type": "string"
+    },
+    {
+      "name": "country",
+      "type": "string"
+    },
+    {
+      "name": "device_id",
+      "type": "string"
+    },
+    {
+      "name": "ip_address",
+      "type": "string"
+    },
+    {
+      "name": "transaction_type",
+      "type": "string"
+    },
+    {
+      "name": "schema_version",
+      "type": "int"
+    }
+  ]
+}

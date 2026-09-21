@@ -26,4 +26,6 @@ The official image and Compose file provide a pinned, reviewable local runtime a
 
 ## Consequences
 
-Developers can start, stop, reset, and verify the same local Kafka topology through root Make targets. Normal shutdown preserves the broker volume; reset is explicit and destructive. The single node cannot demonstrate broker-level high availability. Production topology, partition key, serialization, retention, security, and consumer configuration remain future decisions.
+Developers can start, stop, reset, and verify the same local Kafka topology through root Make targets. Normal shutdown preserves the broker volume; reset is explicit and destructive. The single node cannot demonstrate broker-level high availability. At this ADR's acceptance, production topology, partition key, serialization, retention, security, and consumer configuration were separate future decisions.
+
+ADR-005 and ADR-006 subsequently select the transaction value format and record key without changing this broker topology. Production topology, retention, security, and consumer configuration remain future decisions.

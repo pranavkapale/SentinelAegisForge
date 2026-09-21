@@ -105,6 +105,20 @@ final class TransactionEventValidatorSpec extends AnyFunSuite {
     assert(first.isRight)
   }
 
+  test("amounts exceeding the v1 wire scale are rejected without rounding") {
+    val errors = validationErrors(validCandidate.copy(amount = Some("1.23456")))
+
+    assert(errors.contains(AmountScaleExceeded(BigDecimal("1.23456"), 4)))
+  }
+
+  test("amounts exceeding the v1 wire precision are rejected") {
+    val errors = validationErrors(validCandidate.copy(amount = Some("100000000000000")))
+
+    assert(
+      errors.contains(AmountPrecisionExceeded(BigDecimal("100000000000000"), 18, 4))
+    )
+  }
+
   private def validationErrors(
       candidate: TransactionEventCandidate
   ): Vector[TransactionValidationError] =
