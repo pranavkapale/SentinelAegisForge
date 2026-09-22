@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 3 — Kafka Wire Contract & Partitioning
+Phase 4 — Registry-Backed Transaction Producer
 
-The verified Phase 0, Phase 1, and Phase 2 foundations remain intact. Step 3 adds the canonical Avro transaction wire contract, explicit validated domain-to-wire mapping, compatibility tests, and the `customer_id` Kafka key decision. It does not add producer, consumer, or Schema Registry runtime behavior.
+The verified Phase 0 through Phase 3 foundations remain intact. Step 4 adds a governed local Schema Registry subject and a bounded producer that validates deterministic transactions, maps them to canonical Avro records, and publishes them to `transactions.raw` using the documented `customer_id` key. It does not add a consumer, stream processing, or business decisioning.
 
 ## Implemented Capabilities
 
@@ -28,19 +28,24 @@ The verified Phase 0, Phase 1, and Phase 2 foundations remain intact. Step 3 add
 - Deterministic local Avro binary round-trip with explicit decimal and timestamp precision rules.
 - Apache Avro reader/writer schema compatibility tests.
 - UTF-8 `customer_id` partition-key contract with documented ordering, skew, and partition-expansion boundaries.
+- Pinned local Schema Registry 8.3.2 runtime backed by Kafka's `_schemas` topic at replication factor one.
+- Explicit, idempotent registration of canonical schema version 1 under `transactions.raw-value` using `TopicNameStrategy` and `BACKWARD_TRANSITIVE` compatibility.
+- Kafka Avro serializer integration with schema auto-registration disabled.
+- Bounded deterministic transaction producer using UTF-8 `customer_id` keys, `acks=all`, producer idempotence, explicit acknowledgement accounting, and controlled failure reporting.
+- Live production of 10 validated transactions with 10 broker acknowledgements and an observed aggregate offset increase of 10.
 
-No application producer, consumer, Schema Registry integration, streaming processing, fraud decisioning, application persistence, model lifecycle, or other runtime capability is implemented. The local Kafka runtime and topic lifecycle remain verified independently of application behavior.
+No application consumer, stream processing, fraud decisioning, application persistence, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence is a Kafka delivery safeguard and is not an exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, and focused tests. It has no Kafka client, Spark, registry-backed serialization, or fraud-processing runtime.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, and a bounded registry-backed Kafka producer. It has no Kafka consumer, Spark, or fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
-- Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller and one explicitly provisioned application topic, `transactions.raw`.
+- Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The modules have no runtime integration with Kafka or each other.
+The streaming module can publish bounded validated samples to local Kafka. There is no consumer path and the two modules have no runtime integration with each other.
 
 ## Runtime Baseline
 
@@ -55,6 +60,8 @@ The modules have no runtime integration with Kafka or each other.
 - [ADR-004: Local Kafka runtime](docs/adr/ADR-004-local-kafka-runtime.md)
 - [ADR-005: Transaction event serialization](docs/adr/ADR-005-transaction-event-serialization.md)
 - [ADR-006: Kafka transaction partition key](docs/adr/ADR-006-kafka-transaction-partition-key.md)
+- [ADR-007: Schema Registry governance](docs/adr/ADR-007-schema-registry-governance.md)
+- [ADR-008: Kafka producer delivery semantics](docs/adr/ADR-008-kafka-producer-delivery-semantics.md)
 
 ## Verification Status
 
@@ -153,28 +160,50 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify`: passed for both independently buildable modules without requiring Kafka or Docker.
 - `git diff --check`: passed before the final project-state update and was rerun afterward.
 
+### Step 4 verification
+
+- Docker Desktop 4.89.0 was reachable with Docker Engine/CLI 29.7.2 and Docker Compose v5.5.0.
+- `docker compose config --quiet`: passed. Apache Kafka remains pinned to `apache/kafka:4.3.1`; Schema Registry is pinned to `confluentinc/cp-schema-registry:8.3.2` and uses `kafka:19092` for metadata storage.
+- Initial live startup exposed that the Schema Registry image does not contain `curl`. Its readiness probe was narrowly corrected to use the image's existing Python standard library HTTP client; the service then reached `healthy` status.
+- `make infra-up`, `make infra-status`, and `make verify-infra`: passed. Live metadata reported `transactions.raw` at 3 partitions and replication factor 1, `_schemas` at replication factor 1, and `transactions.raw-value` version 1 / schema ID 1 with `BACKWARD_TRANSITIVE` compatibility.
+- Re-running explicit schema provisioning succeeded without adding a version: the subject remained at versions `[1]` and schema ID 1.
+- Effective Scala dependency inspection reported `org.apache.kafka:kafka-clients:4.3.1`, `org.apache.avro:avro:1.12.2`, and `io.confluent:kafka-avro-serializer:8.3.2`. The serializer's Confluent-patched Kafka client was excluded so the project retains the required Apache Kafka client 4.3.1; transitive Avro 1.12.1 was evicted by direct Avro 1.12.2.
+- A deterministic live batch with count 10, seed 4242, and base time `2026-09-21T00:00:00Z` reported 10 acknowledgements and zero failures. Aggregate topic end offsets increased from 0 to 10 (`0/0/0` to `1/8/1`). A CLI inspection observed UTF-8 key `customer-3178` and value prefix `0000000001` (Confluent framing magic byte 0 and schema ID 1).
+- `infra-down` retained the project volume, all 10 records, subject version 1 / ID 1, and its compatibility setting. The following `infra-up` passed verification.
+- `infra-reset` removed only the project Compose volume. The following `infra-up` recreated `transactions.raw`, `_schemas`, and `transactions.raw-value` version 1 / ID 1 with `BACKWARD_TRANSITIVE`; application-topic offsets correctly returned to zero.
+- `sbt compile`: passed under Temurin JDK 21.0.12.1, Scala 2.13.18, and sbt 2.0.9.
+- Forced `sbt "Test / testOnly *"`: passed; all 27 tests passed across 7 suites, including all 22 prior tests and 5 new producer tests.
+- `sbt scalafmtCheckAll`: passed for all configured Scala and sbt sources.
+- `make verify-scala`: passed with infrastructure stopped. The preceding forced suite executed all tests; sbt's incremental invocation had no changed tests to rerun.
+- `make verify-python`: passed under Python 3.13.9; pytest, Ruff lint/format, and mypy passed.
+- `make verify`: passed for both modules with Kafka and Schema Registry stopped.
+- `git diff --check`: passed after the final project-state update.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
+- Module A does not yet select an application logging backend. Kafka/registry libraries therefore emit the standard SLF4J no-provider warning and use the no-operation fallback; the producer's explicit acknowledgement and failure reporting remains functional.
 
 ## Known Failures
 
-No current Phase 0, Phase 1, Phase 2, or Phase 3 build, test, or runtime verification failures are known.
+No current Phase 0 through Phase 4 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
-- Schema Registry runtime and final registry-backed Kafka framing.
 - Kafka metadata model.
-- Kafka producer acknowledgements, retries, idempotence, and producer/consumer integration.
+- Kafka consumer and Spark ingestion.
+- Dead-letter queue and invalid-event transport behavior.
+- Kafka transactions and any future atomic multi-record/multi-topic boundary.
 - Production Kafka topology, replication, retention sizing, and security.
 - Watermark and late-event semantics.
-- Deduplication boundaries and policy.
-- Dead-letter queue routing and behavior.
+- Business-event deduplication boundaries and policy.
+- Validated-event and decision topics.
 - Spark version and runtime dependencies.
 - Delta/MinIO persistence and idempotency strategy.
 - Streaming state design.
 - ML runtime contract.
+- Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-Phase 3 wire-contract and partitioning semantics are implemented and fully verified. No Phase 4 capability is implemented here.
+Phase 4 registry-backed transaction production is implemented and fully verified. No subsequent-phase capability is implemented here.

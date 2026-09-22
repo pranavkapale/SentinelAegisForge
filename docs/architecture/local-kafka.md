@@ -8,7 +8,9 @@ Kafka will provide the transport boundary between transaction sources and the fu
 
 The local environment uses the official JVM `apache/kafka:4.3.1` image as one combined KRaft broker/controller. Host applications connect to `localhost:9092`; future services on the Compose network can connect to `kafka:19092`. The controller listener is internal to the container network.
 
-The single application topic is `transactions.raw`, explicitly provisioned with three partitions and replication factor one. Automatic topic creation is disabled so a mistyped topic name does not silently create application infrastructure. The broker infrastructure continues to treat values as opaque bytes; the application-level Avro contract is documented separately and no Schema Registry or producer is connected to this topic.
+The single application topic is `transactions.raw`, explicitly provisioned with three partitions and replication factor one. Automatic topic creation is disabled so a mistyped topic name does not silently create application infrastructure.
+
+Confluent Schema Registry 8.3.2 runs at `http://localhost:8081` and connects to Kafka through `kafka:19092`. It stores metadata in the compacted `_schemas` Kafka topic with local replication factor one. No separate registry volume exists: the Kafka data volume preserves registry state during normal shutdown and deliberately removes it during reset.
 
 The broker uses a Docker-managed volume. `make infra-down` stops and removes the Compose containers and network while preserving that volume. `make infra-reset` deliberately removes the containers and volume; a later `make infra-up` creates fresh broker storage and reprovisions the topic.
 
@@ -18,7 +20,7 @@ One combined broker/controller keeps local development and future deterministic 
 
 ## Topic grain
 
-`transactions.raw` is reserved for incoming transaction events before streaming validation or processing. Avro is the selected value contract and UTF-8 `customer_id` is the selected future record key, but no producer or consumer exists.
+`transactions.raw` receives validated deterministic sample events from the bounded producer. Avro is the value contract and UTF-8 `customer_id` is the key. No consumer exists.
 
 ## Partition count
 
@@ -47,7 +49,6 @@ Run `make infra-up` afterward when a fresh broker is needed. Infrastructure star
 
 The following remain undecided and unimplemented:
 
-- Schema Registry;
 - retention sizing;
 - production replication factor;
 - security and TLS/SASL;

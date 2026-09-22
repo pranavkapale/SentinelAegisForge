@@ -14,7 +14,7 @@ Use Apache Avro for transaction event values. The canonical version 1 schema is 
 
 Use Avro logical types for UUID, absolute microsecond timestamps, and `decimal(18,4)` amounts. Sub-microsecond instants and amounts outside the declared decimal representation are rejected rather than silently truncated or rounded. Represent `transaction_type` as a string whose allowed values remain governed by domain validation. This avoids coupling every additive transaction-type value to an Avro enum symbol change.
 
-When Schema Registry is introduced, the initial intended compatibility policy is `BACKWARD_TRANSITIVE`. That policy is planned, not currently enforced by infrastructure. Critical evolution behavior is currently exercised with Apache Avro's compatibility API.
+ADR-007 subsequently introduces Schema Registry and enforces `BACKWARD_TRANSITIVE` on the transaction value subject. Compatibility behavior remains covered locally with Apache Avro's compatibility API as well.
 
 ## Alternatives considered
 
@@ -29,4 +29,4 @@ Avro provides an explicit schema, compact binary representation, mature evolutio
 
 The repository has one canonical transaction-event schema and a tested domain-to-wire boundary. Future producers must apply the same mapping rather than inventing a second payload. Schema changes require compatibility tests and contract review.
 
-Schema Registry, registry-backed Kafka serialization, producer behavior, and the final Kafka framing mechanism remain deferred to the first producer integration. No fake production v2 schema is created by this decision.
+ADR-007 and ADR-008 subsequently establish registry-backed Kafka serialization and producer delivery behavior. No fake production v2 schema is created by this decision.

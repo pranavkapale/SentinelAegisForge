@@ -46,9 +46,8 @@ The external representation is now defined separately by the canonical [transact
 
 This domain contract does not implement:
 
-- Schema Registry;
 - Kafka metadata representation;
 - watermark or late-event policy;
 - deduplication policy;
 - dead-letter queue behavior;
-- producer or consumer behavior.
+- consumer behavior.

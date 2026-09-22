@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The transaction wire contract defines how a trusted `TransactionEvent` version 1 maps to an external Apache Avro value and how a future Kafka record is keyed. It provides local mapping, raw Avro binary round-trip, and compatibility evidence without implementing a Kafka producer, consumer, or Schema Registry.
+The transaction wire contract defines how a trusted `TransactionEvent` version 1 maps to an external Apache Avro value and how a Kafka record is keyed. It provides local mapping, raw Avro binary round-trip, compatibility evidence, and the schema input used by the registry-backed producer.
 
 ```text
 TransactionEventCandidate
@@ -10,11 +10,11 @@ TransactionEventCandidate
 TransactionEvent
         ↓ explicit mapping
 Avro record
-        ↓ future registry serializer
+        ↓ registry serializer
 Kafka transactions.raw
 ```
 
-The final two stages are future integration work: the repository currently maps and locally encodes Avro records but does not publish them.
+The bounded producer implements the final two stages. The Phase 3 raw codec remains a separate local contract-test boundary and is not passed into the registry serializer.
 
 ## Canonical schema and mapping
 
@@ -22,7 +22,7 @@ The final two stages are future integration work: the repository currently maps 
 
 The mapper converts every validated domain field to its corresponding snake-case Avro field. Decode performs the inverse primitive mapping into an untrusted `TransactionEventCandidate` and invokes `TransactionEventValidator`. Malformed binary data, invalid Avro values, and domain-invalid decoded values return explicit codec errors instead of silently creating trusted domain state.
 
-The local codec emits ordinary Avro binary data for tests. It does not add a magic byte, schema ID, or any other Schema Registry framing.
+The local codec emits ordinary Avro binary data for tests. Separately, the official Kafka Avro serializer owns registry framing and schema IDs for produced records; application code does not implement either.
 
 ## Logical representations
 
@@ -36,7 +36,7 @@ The local codec emits ordinary Avro binary data for tests. It does not add a mag
 
 Tests use Apache Avro's reader/writer compatibility API. They demonstrate that a new optional field with a default can read version 1 data and that changing the required `customer_id` field to an incompatible type is rejected. These are test-only schema variants, not production v2 contracts.
 
-The intended future Schema Registry policy is `BACKWARD_TRANSITIVE`, so new readers would be checked against all prior registered versions. This is planned guidance only; no registry exists and no infrastructure currently enforces it.
+Schema Registry enforces `BACKWARD_TRANSITIVE` on `transactions.raw-value`, so future registrations are checked against all prior subject versions. Local Avro API tests continue to provide fast compatibility feedback without Docker.
 
 ## Kafka key and ordering boundary
 
@@ -48,9 +48,7 @@ Increasing the topic's partition count can remap later records for a customer. P
 
 ## Deferred decisions
 
-- Schema Registry runtime and final registry-backed Kafka framing;
-- Kafka producer acknowledgements, retries, and idempotence;
-- Kafka producer and consumer implementation;
+- Kafka consumer implementation;
 - consumer groups and Kafka metadata representation;
 - schema version 2 or later;
 - dead-letter queue behavior;

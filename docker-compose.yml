@@ -55,5 +55,30 @@ services:
           --replication-factor 1
     restart: "no"
 
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.3.2
+    hostname: schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:19092"
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: "1"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8081/subjects', timeout=3).read()\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 15s
+    restart: unless-stopped
+
 volumes:
   kafka-data:

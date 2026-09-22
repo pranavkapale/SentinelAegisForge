@@ -1,6 +1,6 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 3 adds a formal Avro transaction wire contract and customer-key partitioning semantics to the validated transaction contract, deterministic simulator, and local Kafka foundation; no transaction producer, streaming processing, fraud decisioning, or model lifecycle behavior is implemented yet.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 4 adds explicit Schema Registry governance and a bounded producer that publishes deterministic validated transaction events to local Kafka using registry-backed Avro serialization. No consumer, streaming processing, fraud decisioning, or model lifecycle behavior is implemented yet.
 
 ## Modules
 
@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 3 — Kafka Wire Contract & Partitioning**. Module A provides a transport-independent transaction candidate, typed v1 validation boundary, deterministic simulator, and explicit Apache Avro mapping with local binary round-trip. A single-node local Apache Kafka environment provisions `transactions.raw`, whose future record key is documented as UTF-8 `customer_id`; no producer, consumer, Schema Registry, Spark, or fraud behavior exists yet.
+The repository is in **Phase 4 — Registry-Backed Transaction Producer**. Module A validates generated candidates, maps trusted events to the canonical Avro schema, and can publish a bounded sample to `transactions.raw` using UTF-8 `customer_id` keys. Local Schema Registry explicitly provisions `transactions.raw-value` with `BACKWARD_TRANSITIVE` compatibility. No consumer, Spark, fraud behavior, or exactly-once business guarantee exists.
 
 ## Local development
 
@@ -39,6 +39,12 @@ make verify-infra
 make infra-down
 ```
 
+Publish a deterministic sample while infrastructure is running:
+
+```sh
+make produce-sample COUNT=10 SEED=42 BASE_TIME=2026-09-21T00:00:00Z
+```
+
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
-See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
+See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [transaction producer](docs/architecture/transaction-producer.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).

@@ -14,7 +14,7 @@ Kafka ordering is scoped to a partition, not to a topic or the platform globally
 
 Use `TransactionEvent.customerId` as the Kafka record key for `transactions.raw`, encoded directly as a UTF-8 string. Do not manually hash it, include a partition number in the event, or introduce a custom partitioner. A future producer should use Kafka's normal keyed partition selection unless measured requirements justify a different approach.
 
-This is a logical contract only; no Kafka producer is implemented by this ADR.
+This ADR establishes the logical contract; the bounded producer introduced later implements it without changing the key semantics.
 
 ## Alternatives considered
 

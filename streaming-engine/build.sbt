@@ -5,6 +5,7 @@ ThisBuild / scalaVersion := "2.13.18"
 lazy val root = (project in file("."))
   .settings(
     name := "streaming-engine",
+    resolvers += "Confluent" at "https://packages.confluent.io/maven/",
     scalacOptions ++= Seq(
       "-deprecation",
       "-feature",
@@ -16,6 +17,9 @@ lazy val root = (project in file("."))
     javacOptions ++= Seq("--release", "21", "-encoding", "UTF-8"),
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro" % "1.12.2",
+      "org.apache.kafka" % "kafka-clients" % "4.3.1",
+      ("io.confluent" % "kafka-avro-serializer" % "8.3.2")
+        .exclude("org.apache.kafka", "kafka-clients"),
       "org.scalatest" %% "scalatest" % "3.2.19" % Test
     ),
     Compile / resourceGenerators += Def.task {

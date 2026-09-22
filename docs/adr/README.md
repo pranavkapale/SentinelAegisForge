@@ -40,3 +40,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-004: Local Kafka runtime](ADR-004-local-kafka-runtime.md)
 - [ADR-005: Transaction event serialization](ADR-005-transaction-event-serialization.md)
 - [ADR-006: Kafka transaction partition key](ADR-006-kafka-transaction-partition-key.md)
+- [ADR-007: Schema Registry governance](ADR-007-schema-registry-governance.md)
+- [ADR-008: Kafka producer delivery semantics](ADR-008-kafka-producer-delivery-semantics.md)
