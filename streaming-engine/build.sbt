@@ -20,7 +20,19 @@ lazy val root = (project in file("."))
       "org.apache.kafka" % "kafka-clients" % "4.3.1",
       ("io.confluent" % "kafka-avro-serializer" % "8.3.2")
         .exclude("org.apache.kafka", "kafka-clients"),
+      "org.apache.spark" %% "spark-sql" % "4.2.0",
+      ("org.apache.spark" %% "spark-sql-kafka-0-10" % "4.2.0")
+        // Keep the existing, directly pinned Apache Kafka client used by Module A.
+        .exclude("org.apache.kafka", "kafka-clients"),
       "org.scalatest" %% "scalatest" % "3.2.19" % Test
+    ),
+    dependencyOverrides ++= Seq(
+      // Spark 4.2's Scala module requires the Jackson 2.21 line at runtime.
+      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.21",
+      "com.fasterxml.jackson.core" % "jackson-core" % "2.21.2",
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.21.2",
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-csv" % "2.21.2",
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % "2.21.2"
     ),
     Compile / resourceGenerators += Def.task {
       val source =

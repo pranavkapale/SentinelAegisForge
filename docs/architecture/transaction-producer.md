@@ -61,7 +61,7 @@ make produce-sample \
 
 ## Current non-goals
 
-- Kafka consumer or Spark ingestion;
+- durable or stateful Spark processing beyond the separate minimal ingestion path;
 - invalid-event or dead-letter production;
 - business-event deduplication;
 - Kafka transactions;

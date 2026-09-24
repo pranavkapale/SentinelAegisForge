@@ -1,10 +1,13 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample
 
 COUNT ?= 10
 SEED ?= 42
 BASE_TIME ?= 2026-09-21T00:00:00Z
 BOOTSTRAP_SERVERS ?= localhost:9092
 SCHEMA_REGISTRY_URL ?= http://localhost:8081
+CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/transaction-ingestion
+STARTING_OFFSETS ?= earliest
+SPARK_MASTER ?= local[*]
 
 verify: verify-scala verify-python
 
@@ -40,3 +43,7 @@ verify-infra:
 produce-sample:
 	$(MAKE) verify-infra
 	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.kafka.producer.TransactionProducerApp --count=$(COUNT) --seed=$(SEED) --base-time=$(BASE_TIME) --bootstrap-servers=$(BOOTSTRAP_SERVERS) --schema-registry-url=$(SCHEMA_REGISTRY_URL) --topic=transactions.raw"
+
+consume-sample:
+	$(MAKE) verify-infra
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.kafka.ingestion.TransactionIngestionApp --bootstrap-servers=$(BOOTSTRAP_SERVERS) --schema-registry-url=$(SCHEMA_REGISTRY_URL) --topic=transactions.raw --checkpoint-location=$(CHECKPOINT_DIR) --starting-offsets=$(STARTING_OFFSETS) --spark-master=$(SPARK_MASTER)"

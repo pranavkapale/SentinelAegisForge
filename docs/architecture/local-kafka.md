@@ -20,7 +20,7 @@ One combined broker/controller keeps local development and future deterministic 
 
 ## Topic grain
 
-`transactions.raw` receives validated deterministic sample events from the bounded producer. Avro is the value contract and UTF-8 `customer_id` is the key. No consumer exists.
+`transactions.raw` receives validated deterministic sample events from the bounded producer. Avro is the value contract and UTF-8 `customer_id` is the key. The minimal Spark ingestion application consumes this topic locally and preserves its Kafka coordinates; no durable application sink exists.
 
 ## Partition count
 
@@ -53,8 +53,8 @@ The following remain undecided and unimplemented:
 - production replication factor;
 - security and TLS/SASL;
 - multi-broker deployment;
-- consumer-group configuration;
-- Kafka metadata representation;
+- production consumer-group configuration;
+- durable Kafka metadata representation;
 - dead-letter routing;
 - MinIO or Delta persistence.
 

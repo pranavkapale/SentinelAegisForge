@@ -40,7 +40,7 @@ Schema Registry enforces `BACKWARD_TRANSITIVE` on `transactions.raw-value`, so f
 
 ## Kafka key and ordering boundary
 
-The future `transactions.raw` record key is `customer_id`, encoded as a UTF-8 string. It is not manually hashed, and no custom partitioner is selected. Under a stable partition topology, normal keyed partitioning provides customer locality and a useful per-customer ordering property. Kafka ordering remains partition-scoped; this is not global ordering.
+The `transactions.raw` record key is `customer_id`, encoded as a UTF-8 string. It is not manually hashed, and no custom partitioner is selected. Under a stable partition topology, normal keyed partitioning provides customer locality and a useful per-customer ordering property. Kafka ordering remains partition-scoped; this is not global ordering. The Spark ingestion boundary now decodes this key strictly and rejects any mismatch with the validated event's `customerId`.
 
 Highly active customers and reused synthetic identities can create hot partitions. Future load tests must observe per-partition record rates, processing rates, lag, and state-size distribution before considering mitigations such as salting.
 
@@ -48,9 +48,9 @@ Increasing the topic's partition count can remap later records for a customer. P
 
 ## Deferred decisions
 
-- Kafka consumer implementation;
-- consumer groups and Kafka metadata representation;
+- durable consumer output and production deployment configuration;
+- consumer groups beyond Spark-managed source progress;
 - schema version 2 or later;
 - dead-letter queue behavior;
-- Spark ingestion, watermarks, and deduplication;
+- watermarks and deduplication;
 - Delta and MinIO persistence.

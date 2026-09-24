@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 4 — Registry-Backed Transaction Producer
+Phase 5 — Minimal Spark Structured Streaming Ingestion
 
-The verified Phase 0 through Phase 3 foundations remain intact. Step 4 adds a governed local Schema Registry subject and a bounded producer that validates deterministic transactions, maps them to canonical Avro records, and publishes them to `transactions.raw` using the documented `customer_id` key. It does not add a consumer, stream processing, or business decisioning.
+The verified Phase 0 through Phase 4 foundations remain intact. Step 5 adds bounded local Spark Structured Streaming ingestion from `transactions.raw`, registry-aware Avro decoding, domain and customer-key validation, Kafka metadata preservation, and checkpoint-managed source progress. Its sink is diagnostic and non-durable; it adds no business decisioning.
 
 ## Implemented Capabilities
 
@@ -33,23 +33,30 @@ The verified Phase 0 through Phase 3 foundations remain intact. Step 4 adds a go
 - Kafka Avro serializer integration with schema auto-registration disabled.
 - Bounded deterministic transaction producer using UTF-8 `customer_id` keys, `acks=all`, producer idempotence, explicit acknowledgement accounting, and controlled failure reporting.
 - Live production of 10 validated transactions with 10 broker acknowledgements and an observed aggregate offset increase of 10.
+- Apache Spark 4.2.0 local Structured Streaming runtime with the matching Kafka source connector.
+- `transactions.raw` key/value byte ingestion with topic, partition, offset, and broker timestamp preservation.
+- Official registry-aware Avro deserialization with one deserializer per Spark task partition and no application-managed schema IDs or framing.
+- Validation-preserving decoded-record mapping and strict Kafka-key/customer-ID consistency checks.
+- Typed, visible ingestion failures for malformed keys, values, domain data, and key/customer mismatches.
+- Bounded `Trigger.AvailableNow` diagnostic ingestion with an explicit checkpoint location.
+- Live checkpoint-progress proof: 10 records processed, immediate same-checkpoint rerun processed 0, then 5 newly published records processed with that checkpoint.
 
-No application consumer, stream processing, fraud decisioning, application persistence, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence is a Kafka delivery safeguard and is not an exactly-once business-processing claim.
+No durable application sink, DLQ, event-time/stateful processing, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence is a Kafka delivery safeguard, and Spark checkpoint source progress is not an exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, and a bounded registry-backed Kafka producer. It has no Kafka consumer, Spark, or fraud-processing runtime.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, and minimal Spark Structured Streaming consumer. The consumer validates registry-decoded events and exposes a diagnostic sink; it has no durable persistence, state, or fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka. There is no consumer path and the two modules have no runtime integration with each other.
+The streaming module can publish bounded validated samples to local Kafka and consume them through Spark while preserving transport metadata. Its current output is diagnostic only, and the two modules have no runtime integration with each other.
 
 ## Runtime Baseline
 
-- `streaming-engine`: JDK 21 LTS with Scala 2.13.18 and sbt 2.0.9.
+- `streaming-engine`: JDK 21 LTS with Scala 2.13.18, sbt 2.0.9, and Spark 4.2.0 for the local ingestion runtime.
 - `model-control-plane`: Python 3.13 with uv.
 
 ## Accepted ADRs
@@ -62,6 +69,7 @@ The streaming module can publish bounded validated samples to local Kafka. There
 - [ADR-006: Kafka transaction partition key](docs/adr/ADR-006-kafka-transaction-partition-key.md)
 - [ADR-007: Schema Registry governance](docs/adr/ADR-007-schema-registry-governance.md)
 - [ADR-008: Kafka producer delivery semantics](docs/adr/ADR-008-kafka-producer-delivery-semantics.md)
+- [ADR-009: Spark Structured Streaming ingestion](docs/adr/ADR-009-spark-structured-streaming-ingestion.md)
 
 ## Verification Status
 
@@ -179,31 +187,46 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify`: passed for both modules with Kafka and Schema Registry stopped.
 - `git diff --check`: passed after the final project-state update.
 
+### Step 5 verification
+
+- Spark SQL and the Spark SQL Kafka connector resolved at `4.2.0` under Temurin JDK 21.0.12.1, Scala 2.13.18, and sbt 2.0.9.
+- The first local Spark test exposed a real Jackson incompatibility: Confluent selected databind 2.22.1 while Spark's Scala module 2.21.2 requires databind below 2.22. The build now narrowly overrides the relevant Jackson components to Spark's 2.21.x line; the Confluent mock-registry decoder, producer tests, local Spark transformation, and live registry path all passed afterward.
+- Dependency inspection reported effective `spark-sql_2.13:4.2.0`, `spark-sql-kafka-0-10_2.13:4.2.0`, `kafka-clients:4.3.1`, `avro:1.12.2`, and `kafka-avro-serializer:8.3.2` (which supplies both serializer and deserializer). The connector's Kafka client 3.9.2 is explicitly excluded in favor of Module A's existing direct 4.3.1 pin; live Structured Streaming consumption passed with that client. Spark/Confluent Avro 1.12.1 is evicted by the direct 1.12.2 pin.
+- `sbt "clean ; compile"`: passed; all 29 production Scala sources compiled with infrastructure stopped.
+- Forced `sbt "Test / testOnly *"`: passed; all 34 tests passed across 9 suites, including all 27 prior tests and 7 new registry-decoder and local-Spark tests. The Spark test used `local[2]` with a mock Schema Registry URL and required neither Docker nor HTTP.
+- `sbt scalafmtCheckAll`: passed for all configured Scala and sbt sources.
+- Clean live infrastructure began with `transactions.raw` end offsets `0/0/0`. Publishing 10 deterministic records produced partition/offset ranges `0:0`, `1:0-7`, and `2:0`; the fresh AvailableNow query processed all 10 with zero ingestion failures.
+- An immediate AvailableNow rerun with the same `/tmp/sentinel-phase5-checkpoint.sDzV2g` checkpoint and no publication processed 0 records.
+- Publishing 5 more deterministic records produced partition/offset ranges `0:1` and `1:8-11`; reusing the same checkpoint processed exactly those 5. Final topic end offsets were `2/12/1`, totaling 15 records.
+- This live sequence proves basic checkpoint-managed Kafka source progress. It does not prove crash recovery, a durable/idempotent sink, business deduplication, or end-to-end exactly-once behavior.
+- Normal `make infra-down` stopped Kafka and Schema Registry after live verification and retained `sentinelaegisforge_kafka-data`.
+- `make verify-scala`, `make verify-python`, and `make verify`: passed with infrastructure stopped. The explicit forced Scala run provides the 34-test evidence because sbt 2's subsequent incremental `test` invocation correctly had no changed tests to rerun.
+- `git diff --check`: passed after the final Step 5 implementation and project-state update.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
-- Module A does not yet select an application logging backend. Kafka/registry libraries therefore emit the standard SLF4J no-provider warning and use the no-operation fallback; the producer's explicit acknowledgement and failure reporting remains functional.
+- Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
 
 ## Known Failures
 
-No current Phase 0 through Phase 4 build, test, or runtime verification failures are known.
+No current Phase 0 through Phase 5 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
-- Kafka metadata model.
-- Kafka consumer and Spark ingestion.
-- Dead-letter queue and invalid-event transport behavior.
+- Durable Kafka metadata model beyond the current validated streaming record.
+- Dead-letter queue contract, topic, routing, and invalid-event reprocessing behavior.
 - Kafka transactions and any future atomic multi-record/multi-topic boundary.
 - Production Kafka topology, replication, retention sizing, and security.
 - Watermark and late-event semantics.
 - Business-event deduplication boundaries and policy.
 - Validated-event and decision topics.
-- Spark version and runtime dependencies.
-- Delta/MinIO persistence and idempotency strategy.
-- Streaming state design.
+- Durable Delta/MinIO ingestion and idempotent materialization strategy.
+- Checkpoint crash/restart and sink-recovery guarantees.
+- Streaming state design, state-store selection, and RocksDB evaluation.
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-Phase 4 registry-backed transaction production is implemented and fully verified. No subsequent-phase capability is implemented here.
+Phase 5 minimal Spark Structured Streaming ingestion is implemented and fully verified. No subsequent-phase capability is implemented here.
