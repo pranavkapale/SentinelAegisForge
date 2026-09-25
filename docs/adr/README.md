@@ -43,3 +43,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-007: Schema Registry governance](ADR-007-schema-registry-governance.md)
 - [ADR-008: Kafka producer delivery semantics](ADR-008-kafka-producer-delivery-semantics.md)
 - [ADR-009: Spark Structured Streaming ingestion](ADR-009-spark-structured-streaming-ingestion.md)
+- [ADR-010: Delta durable ingestion](ADR-010-delta-durable-ingestion.md)
+- [ADR-011: Delta streaming idempotency](ADR-011-delta-streaming-idempotency.md)

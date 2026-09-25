@@ -24,6 +24,7 @@ lazy val root = (project in file("."))
       ("org.apache.spark" %% "spark-sql-kafka-0-10" % "4.2.0")
         // Keep the existing, directly pinned Apache Kafka client used by Module A.
         .exclude("org.apache.kafka", "kafka-clients"),
+      "io.delta" % "delta-spark_4.2_2.13" % "4.4.0",
       "org.scalatest" %% "scalatest" % "3.2.19" % Test
     ),
     dependencyOverrides ++= Seq(

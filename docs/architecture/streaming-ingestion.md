@@ -30,7 +30,7 @@ The Kafka source subscribes only to `transactions.raw`. It receives `key` and `v
 
 Each Spark task partition owns one official Confluent `KafkaAvroDeserializer` configured with the supplied Schema Registry URL. The deserializer resolves the wire schema ID; production code neither parses Confluent framing nor hard-codes a schema ID. Decoded generic records pass through the existing Avro mapper and `TransactionEventValidator`. The UTF-8 record key must exactly match the resulting `customerId`. Expected malformed data produces a typed ingestion error which fails the current query visibly.
 
-The local entrypoint uses `Trigger.AvailableNow` and a diagnostic `foreachBatch` sink. The sink reports selected domain values and Kafka partition/offset ranges but writes no durable business data.
+The original local entrypoint uses `Trigger.AvailableNow` and a diagnostic `foreachBatch` sink. The sink remains useful for observing selected domain values and Kafka partition/offset ranges. Phase 6 adds a separate primary durable entrypoint that reuses this ingestion boundary and writes validated records to Delta; see [durable Delta ingestion](delta-ingestion.md).
 
 ## Source and checkpoint semantics
 
@@ -42,7 +42,7 @@ Live verification with a fresh checkpoint demonstrated:
 - an immediate run with the same checkpoint and no new publication processed 0 records;
 - after 5 more records were published, the same checkpoint processed only those 5 records.
 
-This demonstrates basic checkpoint-managed source progress. It does not demonstrate crash recovery, idempotent sink materialization, business-event deduplication, or end-to-end exactly-once processing. A later durable sink phase must define and test its own recovery and idempotency boundary.
+This demonstrates basic checkpoint-managed source progress. Phase 6 separately proves idempotent retry for one Delta micro-batch transaction after a post-commit failure. Neither result demonstrates business-event deduplication or unconditional end-to-end exactly-once processing.
 
 ## Failure policy
 
@@ -53,8 +53,7 @@ Null or malformed keys, registry/Avro decode failures, domain validation failure
 - DLQ contract and routing;
 - event-time lateness and watermark policy;
 - business-event deduplication;
-- durable Delta ingestion and MinIO storage;
-- checkpoint crash/restart failure testing;
+- MinIO/object-storage deployment;
 - stateful customer features and RocksDB state-store selection;
 - fraud rules or scoring;
 - production observability;

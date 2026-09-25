@@ -1,4 +1,4 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta
 
 COUNT ?= 10
 SEED ?= 42
@@ -6,6 +6,10 @@ BASE_TIME ?= 2026-09-21T00:00:00Z
 BOOTSTRAP_SERVERS ?= localhost:9092
 SCHEMA_REGISTRY_URL ?= http://localhost:8081
 CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/transaction-ingestion
+DELTA_PATH ?= $(CURDIR)/.local/delta/transactions_validated
+DELTA_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/delta-transaction-ingestion
+DELTA_TXN_APP_ID ?= sentinel-transactions-validated-v1
+FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
 
@@ -47,3 +51,14 @@ produce-sample:
 consume-sample:
 	$(MAKE) verify-infra
 	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.kafka.ingestion.TransactionIngestionApp --bootstrap-servers=$(BOOTSTRAP_SERVERS) --schema-registry-url=$(SCHEMA_REGISTRY_URL) --topic=transactions.raw --checkpoint-location=$(CHECKPOINT_DIR) --starting-offsets=$(STARTING_OFFSETS) --spark-master=$(SPARK_MASTER)"
+
+ingest-delta:
+	$(MAKE) verify-infra
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.persistence.delta.DeltaTransactionIngestionApp --bootstrap-servers=$(BOOTSTRAP_SERVERS) --schema-registry-url=$(SCHEMA_REGISTRY_URL) --topic=transactions.raw --checkpoint-location=$(DELTA_CHECKPOINT_DIR) --starting-offsets=$(STARTING_OFFSETS) --spark-master=$(SPARK_MASTER) --delta-path=$(DELTA_PATH) --delta-txn-app-id=$(DELTA_TXN_APP_ID) $(if $(FAIL_AFTER_DELTA_BATCH_ID),--fail-after-delta-batch-id=$(FAIL_AFTER_DELTA_BATCH_ID),)"
+
+inspect-delta:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.persistence.delta.DeltaInspectionApp --delta-path=$(DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+reset-delta:
+	@echo "Removing the default local Delta table and its coupled checkpoint."
+	bash scripts/reset-local-delta.sh

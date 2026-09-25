@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 5 adds minimal local Spark Structured Streaming ingestion for the registry-backed transaction records produced in Phase 4. It validates decoded events and preserves Kafka metadata, but implements no durable sink, fraud decisioning, or model lifecycle behavior.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 6 adds local durable Delta ingestion for validated registry-backed transaction records, with tested idempotent retry of a Spark micro-batch after a post-commit failure. It implements no business-event deduplication, fraud decisioning, or model lifecycle behavior.
 
 ## Modules
 
-- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, and minimal Spark ingestion path. Stateful features, fraud/risk decisioning, event-time policy, durable persistence, and recovery guarantees remain future work.
+- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, and a local Delta table for validated records plus Kafka coordinates. Stateful features, fraud/risk decisioning, event-time policy, and business deduplication remain future work.
 - **Module B — `model-control-plane`:** an independently buildable Python module reserved for future drift monitoring, delayed-label evaluation, retraining, model governance, and promotion or rollback.
 
 ## Current status
 
-The repository is in **Phase 5 — Minimal Spark Structured Streaming Ingestion**. Module A can publish bounded registry-backed Avro samples to `transactions.raw`, then consume and validate them locally with Spark 4.2.0 while preserving Kafka topic, partition, offset, and timestamp. The current sink is diagnostic and non-durable; no fraud behavior or exactly-once business guarantee exists.
+The repository is in **Phase 6 — Durable Delta Ingestion & Idempotent Recovery**. Module A can publish bounded registry-backed Avro samples to `transactions.raw`, consume and validate them with Spark 4.2.0, and persist them to a local Delta 4.4.0 table with Kafka coordinates. Delta transaction IDs suppress a retry of the same Spark micro-batch; this is not an exactly-once or duplicate-free business-event claim.
 
 ## Local development
 
@@ -55,6 +55,15 @@ make consume-sample \
 
 Reusing the checkpoint resumes from Spark's saved source progress. Delete or replace a checkpoint only as an intentional local test reset; checkpoint progress is not an exactly-once sink guarantee.
 
+Run bounded durable ingestion and inspect the path-based table:
+
+```sh
+make ingest-delta
+make inspect-delta
+```
+
+The durable query defaults to `.local/checkpoints/delta-transaction-ingestion`, `.local/delta/transactions_validated`, and transaction application ID `sentinel-transactions-validated-v1`. A new checkpoint lineage must use a new `DELTA_TXN_APP_ID`. `make reset-delta` deliberately removes only the default table and its coupled checkpoint.
+
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
-See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [transaction producer](docs/architecture/transaction-producer.md), [minimal streaming ingestion](docs/architecture/streaming-ingestion.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
+See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [transaction producer](docs/architecture/transaction-producer.md), [minimal streaming ingestion](docs/architecture/streaming-ingestion.md), [durable Delta ingestion](docs/architecture/delta-ingestion.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
