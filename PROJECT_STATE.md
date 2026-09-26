@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 6 — Durable Delta Ingestion & Idempotent Recovery
+Phase 7 — Event-Time Deduplication & Late-Data Semantics
 
-The verified Phase 0 through Phase 5 foundations remain intact. Step 6 adds a local path-based Delta table for validated Kafka records and an explicit idempotent micro-batch retry boundary. It adds no business-event deduplication, event-time policy, stateful features, or fraud decisioning.
+The verified Phase 0 through Phase 6 foundations remain intact. Phase 7 leaves the validated-record audit table unchanged and adds a distinct watermark-bounded event-ID deduplication query and durable semantic table. It adds no fraud decisioning or custom risk-feature state.
 
 ## Implemented Capabilities
 
@@ -47,19 +47,25 @@ The verified Phase 0 through Phase 5 foundations remain intact. Step 6 adds a lo
 - Dedicated durable-ingestion checkpoint and explicit checkpoint/application-ID lifecycle rule.
 - Diagnostic post-commit failpoint and verified restart suppression of a retried Delta micro-batch.
 - Delta table inspection and safe default local table/checkpoint reset interfaces.
+- Separate `transactions_deduplicated` Delta table with the same explicit event and Kafka-metadata schema as the validated audit table.
+- Configurable `event_time` watermark followed by `dropDuplicatesWithinWatermark("event_id")` using a dedicated checkpoint lineage.
+- First-accepted-occurrence semantics for duplicate business event IDs, independent of Kafka coordinates.
+- Dedicated retry-safe deduplicated-table sink using stable `txnAppId` and `txnVersion=batchId` transaction identities.
+- AvailableNow progress reporting for watermark, state rows updated/total/removed, rows dropped by watermark, and state memory.
+- Docker-independent local Spark/Delta tests for duplicate suppression, watermark advancement, too-late drops, eligible out-of-order data, retained first-occurrence metadata, and sink retry safety.
 
-No business-event deduplication, DLQ, event-time/stateful processing, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, and Delta micro-batch transaction suppression are distinct boundaries; none is an unconditional exactly-once business-processing claim.
+No DLQ, late-event side output, custom risk state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, and watermark-bounded business-event deduplication are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, and local Delta durable sink. The durable table contains validated records plus Kafka coordinates; the module has no business deduplication, state, or fraud-processing runtime.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, and a separate event-time/watermark-bounded event-ID deduplication sink. It has no fraud-processing runtime or custom risk state.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, and persist validated records plus transport metadata to a local Delta table. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, and derive a durable watermark-bounded deduplicated table from that Delta source. The two runtime modules have no integration with each other.
 
 ## Runtime Baseline
 
@@ -79,6 +85,8 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-009: Spark Structured Streaming ingestion](docs/adr/ADR-009-spark-structured-streaming-ingestion.md)
 - [ADR-010: Delta durable ingestion](docs/adr/ADR-010-delta-durable-ingestion.md)
 - [ADR-011: Delta streaming idempotency](docs/adr/ADR-011-delta-streaming-idempotency.md)
+- [ADR-012: Business-event deduplication](docs/adr/ADR-012-business-event-deduplication.md)
+- [ADR-013: Event-time watermark semantics](docs/adr/ADR-013-event-time-watermark-semantics.md)
 
 ## Verification Status
 
@@ -227,6 +235,20 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - Normal `make infra-down` stopped Kafka and Schema Registry after live verification while retaining the project Kafka volume and the isolated local Delta data.
 - `make verify-scala`, `make verify-python`, and `make verify`: passed with infrastructure stopped. `git diff --check` passed after the final Phase 6 updates.
 
+### Phase 7 verification
+
+- Effective runtime remained Temurin JDK 21.0.12.1, Scala 2.13.18, sbt 2.0.9, Spark 4.2.0, and Delta Lake 4.4.0. `sbt evicted` passed before implementation; no direct dependency was added.
+- `sbt "clean ; compile"`: passed under JDK 21. `sbt scalafmtCheckAll`: passed for 39 production and 12 test Scala sources.
+- Forced `sbt "Test / testOnly *"`: passed; all 40 tests passed across 11 suites. The 3 new Docker-independent tests exercise event-ID state, first-occurrence Kafka metadata, watermark advancement and state removal, a reported too-late drop, eligible out-of-order acceptance, configuration isolation, and the deduplicated sink's own retry-safe Delta transactions.
+- The controlled live experiment used isolated paths under `/tmp/sentinel-phase7.Ro9buW`, watermark delay `10 minutes`, validated sink app ID `sentinel-phase7-validated-v1`, and deduplicated sink app ID `sentinel-phase7-deduplicated-v1`.
+- Three initial events produced 3 validated and 3 deduplicated rows. Republishing the same seed/base/count created three new Kafka coordinates and raised the validated table to 6 rows, while the deduplicated table remained at 3.
+- A unique event at `2030-01-01T12:30:00Z` raised the deduplicated table to 4 rows. Spark then reported watermark `2030-01-01T12:20:00.000Z`, `numRowsRemoved=3`, `numRowsTotal=1`, and `memoryUsedBytes=9600` for `dedupeWithinWatermark`.
+- A unique event at `2030-01-01T12:19:59Z`, selected from the observed watermark, remained in `transactions_validated` but did not change the deduplicated row count. Spark reported `numRowsDroppedByWatermark=1`.
+- A unique out-of-order event at `2030-01-01T12:21:00Z` was newer than the active watermark but older than the newest event; it was accepted and raised the deduplicated count to 5 with `numRowsUpdated=1` and no watermark drop.
+- Final live inspection reported 9 rows in `transactions_validated` and 5 rows in `transactions_deduplicated`, with the same 18-column event/transport schema and no physical partitioning. The deduplicated table had three successful write versions containing 3, 1, and 1 rows.
+- `make verify-scala`, `make verify-python`, and `make verify`: passed with Kafka and Schema Registry stopped. The explicit forced Scala run provides the 40-test evidence because subsequent sbt incremental test invocations correctly had no changed tests to rerun.
+- `git diff --check`: passed before the final project-state update and was rerun afterward.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
@@ -234,7 +256,7 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 
 ## Known Failures
 
-No current Phase 0 through Phase 6 build, test, or runtime verification failures are known.
+No current Phase 0 through Phase 7 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
@@ -242,10 +264,10 @@ No current Phase 0 through Phase 6 build, test, or runtime verification failures
 - Dead-letter queue contract, topic, routing, and invalid-event reprocessing behavior.
 - Kafka transactions and any future atomic multi-record/multi-topic boundary.
 - Production Kafka topology, replication, retention sizing, and security.
-- Watermark and late-event semantics.
-- Business-event deduplication boundaries and policy.
 - Validated-event and decision topics.
-- Business-event deduplication identity, replay boundaries, and policy beyond micro-batch retry suppression.
+- Conflicting-payload detection when one `event_id` is reused with different content.
+- Late-event side-output retention, routing, and reprocessing policy.
+- Production-derived watermark delay and any associated lateness service-level objective.
 - MinIO/S3-compatible object storage and production Delta deployment topology.
 - Multi-sink atomicity and recovery semantics beyond the current single Delta table.
 - Streaming state design, state-store selection, and RocksDB evaluation.
@@ -254,4 +276,4 @@ No current Phase 0 through Phase 6 build, test, or runtime verification failures
 
 ## Next Planned Capability
 
-Phase 6 durable Delta ingestion and idempotent micro-batch recovery are implemented and fully verified. No subsequent-phase capability is implemented here.
+Phase 7 event-time deduplication and late-data semantics are implemented and fully verified. No subsequent-phase capability is implemented here.

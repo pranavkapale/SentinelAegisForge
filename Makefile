@@ -1,4 +1,4 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication
 
 COUNT ?= 10
 SEED ?= 42
@@ -9,6 +9,10 @@ CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/transaction-ingestion
 DELTA_PATH ?= $(CURDIR)/.local/delta/transactions_validated
 DELTA_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/delta-transaction-ingestion
 DELTA_TXN_APP_ID ?= sentinel-transactions-validated-v1
+DEDUPLICATED_DELTA_PATH ?= $(CURDIR)/.local/delta/transactions_deduplicated
+DEDUP_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/transaction-deduplication
+DEDUP_DELTA_TXN_APP_ID ?= sentinel-transactions-deduplicated-v1
+WATERMARK_DELAY ?= 10 minutes
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -62,3 +66,13 @@ inspect-delta:
 reset-delta:
 	@echo "Removing the default local Delta table and its coupled checkpoint."
 	bash scripts/reset-local-delta.sh
+
+deduplicate-transactions:
+	cd streaming-engine && WATERMARK_DELAY="$(WATERMARK_DELAY)" sbt "runMain io.sentinelaegisforge.streaming.processing.deduplication.TransactionDeduplicationApp --validated-delta-path=$(DELTA_PATH) --deduplicated-delta-path=$(DEDUPLICATED_DELTA_PATH) --checkpoint-location=$(DEDUP_CHECKPOINT_DIR) --delta-txn-app-id=$(DEDUP_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER)"
+
+inspect-deduplicated:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.persistence.delta.DeltaInspectionApp --delta-path=$(DEDUPLICATED_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+reset-deduplication:
+	@echo "Removing the default local deduplicated Delta table and its coupled checkpoint."
+	bash scripts/reset-local-deduplication.sh

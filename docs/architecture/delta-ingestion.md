@@ -26,7 +26,7 @@ The application uses `Trigger.AvailableNow` for bounded developer runs. The Phas
 
 ## Data grain
 
-One row represents one successfully validated Kafka record. This is not a unique-business-transaction grain: two Kafka records describing the same event remain two records unless a later, explicitly designed business deduplication stage handles them.
+One row represents one successfully validated Kafka record. This is not a unique-business-transaction grain: two Kafka records describing the same event remain two records. Phase 7 consumes this unchanged audit boundary into a separate, watermark-bounded deduplicated table.
 
 ## Storage schema
 
@@ -54,7 +54,7 @@ This boundary protects one Delta table from duplicate appends caused by retrying
 
 ## Replay boundary
 
-Replaying Kafka through a genuinely new checkpoint is a new logical writer and therefore requires a new `txnAppId`. Such a replay can append the same business events again. Preventing that outcome would require a separately defined business identity and deduplication policy; no `MERGE`, `dropDuplicates`, or event-ID uniqueness rule is present here.
+Replaying Kafka through a genuinely new checkpoint is a new logical writer and therefore requires a new `txnAppId`. Such a replay can append the same business events again. Phase 7 applies a separately defined event-ID deduplication policy downstream; it does not change this table or make this ingestion writer unique.
 
 ## Local lifecycle and inspection
 
@@ -74,7 +74,7 @@ The default table path is `.local/delta/transactions_validated`. Normal Kafka in
 ## Explicit non-guarantees
 
 - no unconditional end-to-end exactly-once or duplicate-free business-event claim;
-- no business-key deduplication, `MERGE`, watermark, late-event policy, or stateful feature logic;
+- no business-key deduplication, `MERGE`, watermark, late-event policy, or stateful feature logic inside this Phase 6 ingestion query;
 - no DLQ, multi-sink atomicity, object-store durability, high availability, or disaster recovery;
 - no performance, scaling, compaction, clustering, retention, or production layout claim;
 - no MinIO/S3, catalog/metastore deployment, or optional Delta feature enablement.

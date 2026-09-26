@@ -1,6 +1,6 @@
 package io.sentinelaegisforge.streaming.persistence.delta
 
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{DataFrame, Dataset}
 
 import io.sentinelaegisforge.streaming.kafka.ingestion.ValidatedTransactionRecord
 
@@ -51,22 +51,34 @@ final class DeltaTransactionSink(
   }
 
   def writeBatch(batch: Dataset[ValidatedTransactionRecord], batchId: Long): Unit = {
-    val writePlan = plan(batchId)
     val storageFrame = ValidatedTransactionDeltaSchema.project(batch)
+    writeStorageBatch(storageFrame, batchId)
+  }
+
+  private[delta] def writeStorageBatch(storageFrame: DataFrame, batchId: Long): Unit = {
+    ValidatedTransactionDeltaSchema.requireExpectedSchema(storageFrame)
 
     if (!storageFrame.isEmpty) {
-      storageFrame.write
-        .format("delta")
-        .mode("append")
-        .options(writePlan.options)
-        .save(writePlan.deltaPath)
-
-      println(
-        s"Delta batch write returned successfully: batchId=$batchId txnAppId=$txnAppId path=$deltaPath"
-      )
-      postCommitHook.afterSuccessfulCommit(batchId)
+      writeNonEmptyStorageBatch(storageFrame, batchId)
     } else {
       println(s"Delta batch skipped because it was empty: batchId=$batchId")
     }
+  }
+
+  private[delta] def writeNonEmptyStorageBatch(
+      storageFrame: DataFrame,
+      batchId: Long
+  ): Unit = {
+    val writePlan = plan(batchId)
+    storageFrame.write
+      .format("delta")
+      .mode("append")
+      .options(writePlan.options)
+      .save(writePlan.deltaPath)
+
+    println(
+      s"Delta batch write returned successfully: batchId=$batchId txnAppId=$txnAppId path=$deltaPath"
+    )
+    postCommitHook.afterSuccessfulCommit(batchId)
   }
 }

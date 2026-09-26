@@ -45,3 +45,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-009: Spark Structured Streaming ingestion](ADR-009-spark-structured-streaming-ingestion.md)
 - [ADR-010: Delta durable ingestion](ADR-010-delta-durable-ingestion.md)
 - [ADR-011: Delta streaming idempotency](ADR-011-delta-streaming-idempotency.md)
+- [ADR-012: Business-event deduplication](ADR-012-business-event-deduplication.md)
+- [ADR-013: Event-time watermark semantics](ADR-013-event-time-watermark-semantics.md)
