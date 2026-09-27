@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 7 — Event-Time Deduplication & Late-Data Semantics
+Phase 8 — Customer Stateful Feature Foundation
 
-The verified Phase 0 through Phase 6 foundations remain intact. Phase 7 leaves the validated-record audit table unchanged and adds a distinct watermark-bounded event-ID deduplication query and durable semantic table. It adds no fraud decisioning or custom risk-feature state.
+The verified Phase 0 through Phase 7 foundations remain intact. Phase 8 consumes the deduplicated Delta boundary and adds one constant-sized event-time state value per active customer plus a durable customer lifecycle snapshot table. It adds no rolling risk features or fraud decisioning.
 
 ## Implemented Capabilities
 
@@ -53,19 +53,28 @@ The verified Phase 0 through Phase 6 foundations remain intact. Phase 7 leaves t
 - Dedicated retry-safe deduplicated-table sink using stable `txnAppId` and `txnVersion=batchId` transaction identities.
 - AvailableNow progress reporting for watermark, state rows updated/total/removed, rows dropped by watermark, and state memory.
 - Docker-independent local Spark/Delta tests for duplicate suppression, watermark advancement, too-late drops, eligible out-of-order data, retained first-occurrence metadata, and sink retry safety.
+- Spark 4.2 arbitrary state API v2 processing with `transformWithState`, `StatefulProcessor`, `TimeMode.EventTime`, and `OutputMode.Update`.
+- One constant-sized `ValueState[CustomerActivityState]` named `customerActivity` per active `customer_id`.
+- Exact `decimal(38,18)` customer amount totals, checked count arithmetic, order-independent first/latest event-time updates, and explicit overflow failures.
+- Replaceable event-time inactivity timers guarded by the authoritative stored timer timestamp, with state-variable TTL disabled.
+- Durable `UPDATED` and `EXPIRED` customer lifecycle snapshots in an unpartitioned `customer_activity_snapshots` Delta table.
+- Dedicated customer-state checkpoint and retry-safe snapshot sink using stable `txnAppId` plus `txnVersion=batchId`.
+- Watermark, state-row, state-memory, shuffle-partition, state-store-instance, and custom state-metric reporting.
+- Direct `TwsTester` state-machine tests plus a real Docker-independent local Spark/Delta checkpoint-recovery test.
+- Narrow Phase 8 RocksDB state-store configuration required by Spark 4.2 streaming `transformWithState`; earlier query sessions remain unchanged.
 
-No DLQ, late-event side output, custom risk state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, and watermark-bounded business-event deduplication are distinct boundaries; none is an unconditional exactly-once business-processing claim.
+No DLQ, late-event side output, rolling risk state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, and customer lifecycle state are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, and a separate event-time/watermark-bounded event-ID deduplication sink. It has no fraud-processing runtime or custom risk state.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, and a customer-keyed activity-state lifecycle. It has no fraud-processing runtime or rolling risk state.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, and derive a durable watermark-bounded deduplicated table from that Delta source. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and maintain event-time-expiring customer activity state from that semantic Delta source. The two runtime modules have no integration with each other.
 
 ## Runtime Baseline
 
@@ -87,6 +96,8 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-011: Delta streaming idempotency](docs/adr/ADR-011-delta-streaming-idempotency.md)
 - [ADR-012: Business-event deduplication](docs/adr/ADR-012-business-event-deduplication.md)
 - [ADR-013: Event-time watermark semantics](docs/adr/ADR-013-event-time-watermark-semantics.md)
+- [ADR-014: Customer stateful processing](docs/adr/ADR-014-customer-stateful-processing.md)
+- [ADR-015: Customer state expiration](docs/adr/ADR-015-customer-state-expiration.md)
 
 ## Verification Status
 
@@ -249,14 +260,33 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify-scala`, `make verify-python`, and `make verify`: passed with Kafka and Schema Registry stopped. The explicit forced Scala run provides the 40-test evidence because subsequent sbt incremental test invocations correctly had no changed tests to rerun.
 - `git diff --check`: passed before the final project-state update and was rerun afterward.
 
+### Phase 8 verification
+
+- Inspection of the installed Spark 4.2.0 sources and live execution established that streaming `transformWithState` supports only `RocksDBStateStoreProvider`. The default HDFS-backed provider failed with `STORE_BACKEND_NOT_SUPPORTED_FOR_TWS`; the user approved a narrow Phase 8 exception, and only the customer-state application/test session configures RocksDB.
+- `sbt "clean ; compile"`: passed under Temurin JDK 21.0.12.1, Scala 2.13.18, and sbt 2.0.9. No direct dependency was added.
+- Forced `sbt "Test / testOnly *"`: passed; all 49 tests passed across 13 suites. Six `TwsTester` tests cover initial/repeated state, independent keys, out-of-order event time, stale timer protection, expiration/reset, exact decimal handling, and overflow. Three real local Spark/Delta tests cover configuration, checkpoint recovery, event-time expiry, reactivation, output schema/layout, and snapshot-sink retry suppression.
+- The controlled live experiment used isolated paths under `/tmp/sentinel-phase8.RmwYH3`, watermark delay `10 minutes`, inactivity duration `1 hour`, and dedicated validated, deduplicated, and customer-state checkpoint/transaction lineages.
+- Deterministic seeds 834 and 7350 produced two events for `customer-9428` at 12:00 and 12:01. The first state run emitted count 2, total 11361.69, latest time 12:01, and expiry 13:01. Seed 1 produced independent `customer-1363` state at count 1, latest 12:05, and expiry 13:05.
+- Seed 10734 produced another `customer-9428` event at 12:20. Restarting with the same state checkpoint restored the prior state and emitted count 3, total 14532.05, latest time 12:20, and replacement expiry 13:20. Progress reported one deleted timer and one registered replacement.
+- A unique `customer-8430` event at 13:40 advanced the observed state-query watermark from 12:10 to 13:30. At 13:30 both older timers fired: `numRowsRemoved=2`, custom `numExpiredTimers=2`, custom `numDeletedTimers=2`, `numRowsTotal=1`, and `memoryUsedBytes=442117`. `EXPIRED` snapshots retained A's count 3/expiry 13:20 and B's count 1/expiry 13:05.
+- Seed 16404 produced a new `customer-9428` event at 13:45. The same checkpoint emitted a fresh lifecycle with count 1, total 7273.11, and expiry 14:45. The final snapshot table contained 7 rows; final no-data progress reported two active customer states and 439120 state-memory bytes.
+- Every live event passed through producer → registry-backed Kafka → validated Delta → event-ID deduplicated Delta → customer state. Existing Phase 7 evidence was not deleted.
+- The live state operator was `transformWithStateExec`; progress reported 200 shuffle partitions/state-store instances from the existing Spark defaults. These are correctness diagnostics, not tuning or benchmark results.
+- `sbt scalafmtCheckAll`: passed after the final Scala source update.
+- `make verify-scala`: passed under Temurin JDK 21.0.12.1 with infrastructure stopped. The earlier forced test run supplies the 49-test evidence; the final incremental invocation had no changed tests to rerun.
+- `make verify-python`: passed under Python 3.13.9; pytest, Ruff lint/format, and mypy passed.
+- `make verify`: passed for both modules with Kafka and Schema Registry stopped.
+- `git diff --check`: passed after the final Phase 8 implementation and documentation updates.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 - Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
+- Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8 provider selection is mandatory for this API in the pinned runtime and is not evidence that RocksDB is otherwise preferable or production-tuned.
 
 ## Known Failures
 
-No current Phase 0 through Phase 7 build, test, or runtime verification failures are known.
+No current Phase 0 through Phase 8 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
@@ -270,10 +300,13 @@ No current Phase 0 through Phase 7 build, test, or runtime verification failures
 - Production-derived watermark delay and any associated lateness service-level objective.
 - MinIO/S3-compatible object storage and production Delta deployment topology.
 - Multi-sink atomicity and recovery semantics beyond the current single Delta table.
-- Streaming state design, state-store selection, and RocksDB evaluation.
+- Production state-store sizing, RocksDB tuning, and future Spark-version provider reevaluation.
+- Customer state-schema migration and initial-state bootstrapping.
+- Rolling customer windows, exact rolling sums, unique merchant/device state, and Welford statistics.
+- Fraud rules, anomaly scoring, and risk decisioning.
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-Phase 7 event-time deduplication and late-data semantics are implemented and fully verified. No subsequent-phase capability is implemented here.
+Phase 8 customer stateful feature foundation is implemented and fully verified. No subsequent-phase capability is implemented here.

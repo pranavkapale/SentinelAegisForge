@@ -48,13 +48,12 @@ This demonstrates basic checkpoint-managed source progress. Phase 6 separately p
 
 Null or malformed keys, registry/Avro decode failures, domain validation failures, and Kafka-key/customer mismatches fail the query. Records are neither silently dropped nor routed elsewhere. A future DLQ design must define the original-byte, failure-reason, Kafka-coordinate, schema-identifier, and reprocessing contracts before a DLQ topic is introduced.
 
-## Deferred
+## Outside this ingestion component
 
 - DLQ contract and routing;
-- event-time lateness and watermark policy;
-- business-event deduplication;
 - MinIO/object-storage deployment;
-- stateful customer features and RocksDB state-store selection;
 - fraud rules or scoring;
 - production observability;
 - measured performance tuning and benchmarks.
+
+The downstream [event-time deduplication](event-time-deduplication.md) and [customer stateful processing](customer-stateful-processing.md) stages were implemented in later phases without changing this Kafka-ingestion boundary. Spark 4.2 requires RocksDB specifically for the later `transformWithState` query; this ingestion query is not reconfigured.

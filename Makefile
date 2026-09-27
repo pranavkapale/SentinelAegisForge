@@ -1,4 +1,4 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication process-customer-state inspect-customer-state reset-customer-state
 
 COUNT ?= 10
 SEED ?= 42
@@ -13,6 +13,10 @@ DEDUPLICATED_DELTA_PATH ?= $(CURDIR)/.local/delta/transactions_deduplicated
 DEDUP_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/transaction-deduplication
 DEDUP_DELTA_TXN_APP_ID ?= sentinel-transactions-deduplicated-v1
 WATERMARK_DELAY ?= 10 minutes
+CUSTOMER_STATE_INACTIVITY ?= 24 hours
+CUSTOMER_STATE_DELTA_PATH ?= $(CURDIR)/.local/delta/customer_activity_snapshots
+CUSTOMER_STATE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-activity-state
+CUSTOMER_STATE_DELTA_TXN_APP_ID ?= sentinel-customer-activity-snapshots-v1
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -76,3 +80,13 @@ inspect-deduplicated:
 reset-deduplication:
 	@echo "Removing the default local deduplicated Delta table and its coupled checkpoint."
 	bash scripts/reset-local-deduplication.sh
+
+process-customer-state:
+	cd streaming-engine && CUSTOMER_STATE_INACTIVITY="$(CUSTOMER_STATE_INACTIVITY)" WATERMARK_DELAY="$(WATERMARK_DELAY)" sbt "runMain io.sentinelaegisforge.streaming.processing.customerstate.CustomerActivityStateApp --deduplicated-delta-path=$(DEDUPLICATED_DELTA_PATH) --snapshot-delta-path=$(CUSTOMER_STATE_DELTA_PATH) --checkpoint-location=$(CUSTOMER_STATE_CHECKPOINT_DIR) --delta-txn-app-id=$(CUSTOMER_STATE_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER)"
+
+inspect-customer-state:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.customerstate.CustomerActivityInspectionApp --delta-path=$(CUSTOMER_STATE_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+reset-customer-state:
+	@echo "Removing the default local customer-state snapshot table and its coupled checkpoint."
+	bash scripts/reset-local-customer-state.sh

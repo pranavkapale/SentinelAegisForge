@@ -47,3 +47,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-011: Delta streaming idempotency](ADR-011-delta-streaming-idempotency.md)
 - [ADR-012: Business-event deduplication](ADR-012-business-event-deduplication.md)
 - [ADR-013: Event-time watermark semantics](ADR-013-event-time-watermark-semantics.md)
+- [ADR-014: Customer stateful processing](ADR-014-customer-stateful-processing.md)
+- [ADR-015: Customer state expiration](ADR-015-customer-state-expiration.md)
