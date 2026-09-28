@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 8 preserves the audit and deduplicated Delta boundaries and adds a customer-keyed Spark state lifecycle with checkpoint recovery, event-time inactivity expiration, and durable lifecycle snapshots. It implements no fraud decisioning or model lifecycle behavior.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 9 adds two prior-only rolling customer features from the deduplicated Delta boundary while retaining the separate Phase 8 customer lifecycle. It implements no fraud decisioning or model lifecycle behavior.
 
 ## Modules
 
-- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, and one constant-sized customer activity state. Fraud/risk decisioning and rolling feature state remain future work.
+- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, and a rolling feature query. Fraud/risk decisioning remains future work.
 - **Module B — `model-control-plane`:** an independently buildable Python module reserved for future drift monitoring, delayed-label evaluation, retraining, model governance, and promotion or rollback.
 
 ## Current status
 
-The repository is in **Phase 8 — Customer Stateful Feature Foundation**. Module A can consume `transactions_deduplicated`, group by `customer_id`, restore one `customerActivity` value state per active customer, and append `UPDATED`/`EXPIRED` lifecycle records to `customer_activity_snapshots`. The watermark and inactivity settings are configurable development policies, not production SLAs. Spark 4.2 requires RocksDB for this `transformWithState` query; the provider is narrowly configured for that application and carries no performance claim.
+The repository is in **Phase 9 — Leakage-Safe Rolling Customer Features**. Module A independently consumes `transactions_deduplicated` to append per-event `prior_transaction_count_5m` and `prior_amount_sum_10m` to `transaction_customer_features`. Current events and equal-time peers are excluded from their own prior history. Outputs reflect online arrival order and are not retroactively recomputed. Spark 4.2 requires RocksDB for the Phase 8 and Phase 9 `transformWithState` queries; neither is configured as a performance optimization.
 
 ## Local development
 
@@ -84,6 +84,15 @@ make inspect-customer-state
 
 The state query defaults to `.local/checkpoints/customer-activity-state`, `.local/delta/customer_activity_snapshots`, and transaction application ID `sentinel-customer-activity-snapshots-v1`. A new state/checkpoint lineage requires a new transaction application ID. `make reset-customer-state` deliberately removes only these default Phase 8 paths.
 
+Run and inspect the independent rolling feature stage:
+
+```sh
+make process-rolling-features WATERMARK_DELAY="10 minutes"
+make inspect-rolling-features
+```
+
+The feature query defaults to `.local/checkpoints/customer-rolling-features`, `.local/delta/transaction_customer_features`, and transaction application ID `sentinel-transaction-customer-features-v1`. The five- and ten-minute feature windows are versioned definitions, while the ten-minute default watermark is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-rolling-features` removes only these default Phase 9 paths.
+
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
-See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [transaction producer](docs/architecture/transaction-producer.md), [minimal streaming ingestion](docs/architecture/streaming-ingestion.md), [durable Delta ingestion](docs/architecture/delta-ingestion.md), [event-time deduplication](docs/architecture/event-time-deduplication.md), [customer stateful processing](docs/architecture/customer-stateful-processing.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).
+See the [transaction event v1 contract](docs/architecture/transaction-event-v1.md), [transaction wire contract](docs/architecture/transaction-wire-contract.md), [transaction producer](docs/architecture/transaction-producer.md), [minimal streaming ingestion](docs/architecture/streaming-ingestion.md), [durable Delta ingestion](docs/architecture/delta-ingestion.md), [event-time deduplication](docs/architecture/event-time-deduplication.md), [customer stateful processing](docs/architecture/customer-stateful-processing.md), [customer rolling features](docs/architecture/customer-rolling-features.md), [local Kafka foundation](docs/architecture/local-kafka.md), [architecture overview](docs/architecture/overview.md), [architecture decision records](docs/adr/README.md), and [current project state](PROJECT_STATE.md).

@@ -49,3 +49,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-013: Event-time watermark semantics](ADR-013-event-time-watermark-semantics.md)
 - [ADR-014: Customer stateful processing](ADR-014-customer-stateful-processing.md)
 - [ADR-015: Customer state expiration](ADR-015-customer-state-expiration.md)
+- [ADR-016: Customer rolling feature semantics](ADR-016-customer-rolling-feature-semantics.md)
+- [ADR-017: Rolling feature state retention](ADR-017-rolling-feature-state-retention.md)

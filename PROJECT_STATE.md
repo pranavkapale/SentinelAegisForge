@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 8 — Customer Stateful Feature Foundation
+Phase 9 — Leakage-Safe Rolling Customer Features
 
-The verified Phase 0 through Phase 7 foundations remain intact. Phase 8 consumes the deduplicated Delta boundary and adds one constant-sized event-time state value per active customer plus a durable customer lifecycle snapshot table. It adds no rolling risk features or fraud decisioning.
+The verified Phase 0 through Phase 8 foundations remain intact. Phase 9 independently consumes the deduplicated Delta boundary and appends two prior-only rolling features per watermark-eligible transaction event. Phase 8 customer lifecycle state and its checkpoint remain separate. No fraud decisioning is implemented.
 
 ## Implemented Capabilities
 
@@ -62,19 +62,26 @@ The verified Phase 0 through Phase 7 foundations remain intact. Phase 8 consumes
 - Watermark, state-row, state-memory, shuffle-partition, state-store-instance, and custom state-metric reporting.
 - Direct `TwsTester` state-machine tests plus a real Docker-independent local Spark/Delta checkpoint-recovery test.
 - Narrow Phase 8 RocksDB state-store configuration required by Spark 4.2 streaming `transformWithState`; earlier query sessions remain unchanged.
+- Independent customer-keyed Phase 9 `transformWithState` query with `prior_transaction_count_5m` and `prior_amount_sum_10m` using inclusive lower and exclusive upper event-time bounds.
+- Feature-before-update processing with equal-timestamp peer exclusion and event-time filtering of already stored future records.
+- Minimal `rollingEvents` MapState keyed by `event_id`, one authoritative `nextCleanupTimerMs` ValueState per active customer, and watermark-driven ten-minute history cleanup.
+- Microsecond-precise window comparisons, upward-rounded millisecond cleanup timers, and checked exact `decimal(38,4)` feature sums.
+- Append-only, unpartitioned `transaction_customer_features` Delta output retaining all 18 source event and Kafka lineage fields plus two feature columns.
+- Dedicated Phase 9 checkpoint and retry-safe Delta sink application ID; RocksDB is selected only for this Spark 4.2 `transformWithState` application and its integration test session.
+- `TwsTester`, temporary Spark/Delta, and controlled live evidence for online feature semantics, checkpoint recovery, out-of-order arrivals, state cleanup, and sink retry protection.
 
-No DLQ, late-event side output, rolling risk state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, and customer lifecycle state are distinct boundaries; none is an unconditional exactly-once business-processing claim.
+No DLQ, late-event side output, merchant/device cardinality state, statistical anomaly feature, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, and both customer state queries are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, and a customer-keyed activity-state lifecycle. It has no fraud-processing runtime or rolling risk state.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, a customer-keyed activity-state lifecycle, and an independent prior-only rolling-feature query. It has no fraud-processing runtime.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and maintain event-time-expiring customer activity state from that semantic Delta source. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run two independent stateful queries over that semantic source: customer activity lifecycle and per-event prior-only rolling features. The two runtime modules have no integration with each other.
 
 ## Runtime Baseline
 
@@ -98,6 +105,8 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-013: Event-time watermark semantics](docs/adr/ADR-013-event-time-watermark-semantics.md)
 - [ADR-014: Customer stateful processing](docs/adr/ADR-014-customer-stateful-processing.md)
 - [ADR-015: Customer state expiration](docs/adr/ADR-015-customer-state-expiration.md)
+- [ADR-016: Customer rolling feature semantics](docs/adr/ADR-016-customer-rolling-feature-semantics.md)
+- [ADR-017: Rolling feature state retention](docs/adr/ADR-017-rolling-feature-state-retention.md)
 
 ## Verification Status
 
@@ -278,15 +287,29 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make verify`: passed for both modules with Kafka and Schema Registry stopped.
 - `git diff --check`: passed after the final Phase 8 implementation and documentation updates.
 
+### Phase 9 verification
+
+- The pre-change worktree was clean. The resolved runtime remained Temurin JDK 21.0.12.1, Scala 2.13.18, sbt 2.0.9, Spark 4.2.0, and Delta Lake 4.4.0. No direct dependency was added.
+- Spark 4.2's resolved `MapState`, timer, `StatefulProcessorHandle`, and `TwsTester` APIs were inspected before implementation. The Phase 9 application/test session selects RocksDB only because streaming `transformWithState` requires it in the pinned runtime.
+- `sbt "clean ; compile"`: passed; 55 production Scala sources compiled.
+- Forced `sbt "Test / testOnly *"`: passed; all 59 tests passed across 15 suites. The 10 Phase 9 tests cover prior-only windows, inclusive lower bounds, same-time peer exclusion, iterator order, out-of-order and online behavior, microsecond precision, timer replacement and cleanup, exact decimal/overflow handling, checkpoint recovery, customer isolation, explicit Delta schema, and sink retry suppression.
+- `sbt scalafmtCheckAll`, `make verify-scala`, `make verify-python`, and `make verify`: passed with Docker infrastructure stopped. The forced Scala run supplies the 59-test evidence; subsequent sbt incremental test invocations had no changed tests to rerun. Python 3.13.9 pytest, Ruff, and mypy passed.
+- The controlled live path used isolated `/tmp/sentinel-phase9.XDqpV5KBBx` Delta tables, checkpoints, and transaction application IDs. All six events passed producer → registry-backed Kafka → validated Delta → deduplicated Delta before feature processing. Existing Phase 8 paths were untouched.
+- In the online lineage, deterministic seeds 834, 7350, 10734, and 16404 produced `customer-9428` events at 12:00, 12:01, 12:08, and 12:09. Their observed `(amount, prior count, prior sum)` values were respectively `(7171.8400, 0, 0.0000)`, `(4189.8500, 1, 7171.8400)`, `(3170.3600, 0, 11361.6900)`, and `(7273.1100, 1, 14532.0500)`. The query was stopped after the first two records and restarted with the same checkpoint for the later two, proving restored rolling history.
+- Seed 28899 then arrived after 12:09 with event time 12:06, amount 4214.7500, count 1, and sum 11361.6900. It excluded the stored 12:08/12:09 future events. Previously written 12:08/12:09 feature rows remained unchanged; the online target contained five rows at that point.
+- A separate `customer-1363` seed 1 event at 12:30 had amount 7059.8500 and zero prior features; the online target then contained six rows. This event advanced the feature-query watermark to 12:20. An initial experimental cleanup callback removed only the earliest expired entry, exposing a watermark-jump defect. The callback was corrected and verified with a new feature checkpoint, target, and transaction application ID over the same already validated/deduplicated live source. In that fresh lineage, `transformWithStateExec` reported `numRowsTotal=8` before advancement and `numRowsTotal=2`, `numRowsRemoved=6`, `numExpiredTimers=1`, and `memoryUsedBytes=435149` after the 12:20 watermark. The 8 and 2 state rows include both MapState entries and timer ValueState entries. Memory did not decrease monotonically and is not a performance claim.
+- `bash -n scripts/reset-local-rolling-features.sh`: passed. Normal `make infra-down` stopped Kafka and Schema Registry without removing their data volume.
+- `git diff --check`: passed after implementation and documentation updates.
+
 ## Known Technical Debt
 
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 - Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
-- Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8 provider selection is mandatory for this API in the pinned runtime and is not evidence that RocksDB is otherwise preferable or production-tuned.
+- Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8 and Phase 9 provider selections are mandatory for this API in the pinned runtime and are not evidence that RocksDB is otherwise preferable or production-tuned.
 
 ## Known Failures
 
-No current Phase 0 through Phase 8 build, test, or runtime verification failures are known.
+No current Phase 0 through Phase 9 build, test, or runtime verification failures are known.
 
 ## Deferred Decisions
 
@@ -302,11 +325,12 @@ No current Phase 0 through Phase 8 build, test, or runtime verification failures
 - Multi-sink atomicity and recovery semantics beyond the current single Delta table.
 - Production state-store sizing, RocksDB tuning, and future Spark-version provider reevaluation.
 - Customer state-schema migration and initial-state bootstrapping.
-- Rolling customer windows, exact rolling sums, unique merchant/device state, and Welford statistics.
+- Offline/backfill feature recomputation and retroactive correction of online feature rows after late arrivals.
+- Further rolling windows, unique merchant/device state, and Welford statistics.
 - Fraud rules, anomaly scoring, and risk decisioning.
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-Phase 8 customer stateful feature foundation is implemented and fully verified. No subsequent-phase capability is implemented here.
+Phase 9 prior-only rolling customer features are implemented and fully verified. No subsequent-phase capability is implemented here.

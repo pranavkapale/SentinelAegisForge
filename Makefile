@@ -1,4 +1,4 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication process-customer-state inspect-customer-state reset-customer-state
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication process-customer-state inspect-customer-state reset-customer-state process-rolling-features inspect-rolling-features reset-rolling-features
 
 COUNT ?= 10
 SEED ?= 42
@@ -17,6 +17,9 @@ CUSTOMER_STATE_INACTIVITY ?= 24 hours
 CUSTOMER_STATE_DELTA_PATH ?= $(CURDIR)/.local/delta/customer_activity_snapshots
 CUSTOMER_STATE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-activity-state
 CUSTOMER_STATE_DELTA_TXN_APP_ID ?= sentinel-customer-activity-snapshots-v1
+FEATURE_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_customer_features
+FEATURE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-rolling-features
+FEATURE_DELTA_TXN_APP_ID ?= sentinel-transaction-customer-features-v1
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -90,3 +93,13 @@ inspect-customer-state:
 reset-customer-state:
 	@echo "Removing the default local customer-state snapshot table and its coupled checkpoint."
 	bash scripts/reset-local-customer-state.sh
+
+process-rolling-features:
+	cd streaming-engine && WATERMARK_DELAY="$(WATERMARK_DELAY)" sbt "runMain io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionRollingFeatureApp --deduplicated-delta-path=$(DEDUPLICATED_DELTA_PATH) --feature-delta-path=$(FEATURE_DELTA_PATH) --checkpoint-location=$(FEATURE_CHECKPOINT_DIR) --delta-txn-app-id=$(FEATURE_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER)"
+
+inspect-rolling-features:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionRollingFeatureInspectionApp --delta-path=$(FEATURE_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+reset-rolling-features:
+	@echo "Removing the default local rolling-feature table and its coupled checkpoint."
+	bash scripts/reset-local-rolling-features.sh
