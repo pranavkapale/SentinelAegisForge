@@ -51,3 +51,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-015: Customer state expiration](ADR-015-customer-state-expiration.md)
 - [ADR-016: Customer rolling feature semantics](ADR-016-customer-rolling-feature-semantics.md)
 - [ADR-017: Rolling feature state retention](ADR-017-rolling-feature-state-retention.md)
+- [ADR-018: Customer statistical feature semantics](ADR-018-customer-statistical-feature-semantics.md)
+- [ADR-019: Customer statistical state lifecycle](ADR-019-customer-statistical-state-lifecycle.md)

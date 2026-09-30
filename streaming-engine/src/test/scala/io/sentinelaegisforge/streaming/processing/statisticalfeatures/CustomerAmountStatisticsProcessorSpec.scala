@@ -1,0 +1,236 @@
+package io.sentinelaegisforge.streaming.processing.statisticalfeatures
+
+import java.sql.Timestamp
+import java.time.{Duration, Instant}
+
+import org.apache.spark.sql.streaming.{
+  ExpiredTimerInfo,
+  OutputMode,
+  TimeMode,
+  TimerValues,
+  TwsTester
+}
+import org.scalatest.funsuite.AnyFunSuite
+
+import io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionCustomerFeatures
+
+final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
+  test("first observation has no prior history; canonical Welford sequence scores before update") {
+    val tester = newTester()
+    val first = tester.test("a", List(input("a", 0L, "12:00", "100"))).head
+    assert(first.priorAmountObservationCount == 0L)
+    assert(first.priorAmountMean.isEmpty)
+    assert(first.priorAmountStddev.isEmpty)
+    assert(first.amountZscore.isEmpty)
+    assert(first.statisticalFeatureStatus == "NO_HISTORY")
+    assertState(tester, "a", 1L, 100.0, 0.0)
+
+    val second = tester.test("a", List(input("a", 1L, "12:01", "200"))).head
+    assert(second.priorAmountObservationCount == 1L)
+    assert(second.priorAmountMean.contains(100.0))
+    assert(second.priorAmountStddev.isEmpty)
+    assert(second.amountZscore.isEmpty)
+    assert(second.statisticalFeatureStatus == "INSUFFICIENT_VARIANCE_HISTORY")
+    assertState(tester, "a", 2L, 150.0, 5000.0)
+
+    val third = tester.test("a", List(input("a", 2L, "12:02", "300"))).head
+    assert(third.priorAmountObservationCount == 2L)
+    assertClose(third.priorAmountMean.get, 150.0)
+    assertClose(third.priorAmountStddev.get, math.sqrt(5000.0))
+    assertClose(third.amountZscore.get, 150.0 / math.sqrt(5000.0))
+    assert(third.statisticalFeatureStatus == "READY")
+    assertState(tester, "a", 3L, 200.0, 20000.0)
+  }
+
+  test("zero variance never creates a non-finite z-score") {
+    val tester = newTester()
+    (0L until 3L).foreach(offset => tester.test("a", List(input("a", offset, "12:00", "100"))))
+    val scored = tester.test("a", List(input("a", 3L, "12:01", "150"))).head
+    assert(scored.priorAmountObservationCount == 3L)
+    assert(scored.priorAmountMean.contains(100.0))
+    assert(scored.priorAmountStddev.contains(0.0))
+    assert(scored.amountZscore.isEmpty)
+    assert(scored.statisticalFeatureStatus == "ZERO_VARIANCE")
+  }
+
+  test("transport offset orders one invocation, not iterator, amount, or event time") {
+    val rows = List(
+      input("a", 2L, "12:02", "300"),
+      input("a", 0L, "12:10", "100"),
+      input("a", 1L, "12:00", "200")
+    )
+    val forward = newTester().test("a", rows)
+    val reverse = newTester().test("a", rows.reverse)
+    assert(forward == reverse)
+    assert(forward.map(_.base.kafkaOffset) == List(0L, 1L, 2L))
+    assert(forward.map(_.priorAmountObservationCount) == List(0L, 1L, 2L))
+    assertClose(forward.last.priorAmountMean.get, 150.0)
+  }
+
+  test("late event is scored against already observed later event times") {
+    val tester = newTester()
+    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    tester.test("a", List(input("a", 1L, "12:10", "200")))
+    val late = tester.test("a", List(input("a", 2L, "12:05", "300"))).head
+    assert(late.priorAmountObservationCount == 2L)
+    assertClose(late.priorAmountMean.get, 150.0)
+    assertClose(late.amountZscore.get, 150.0 / math.sqrt(5000.0))
+    val state = tester
+      .peekValueState[CustomerAmountStatistics](
+        CustomerAmountStatisticsProcessor.StateName,
+        "a"
+      )
+      .get
+    assert(state.latestEventTimeMicros == epochMicros("12:10"))
+    assert(state.expiryTimerMs == instant("2030-01-01T13:10:00Z").toEpochMilli)
+  }
+
+  test("customers are independent and partition or offset lineage violation fails") {
+    val tester = newTester()
+    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    val b = tester.test("b", List(input("b", 0L, "12:00", "300"))).head
+    assert(b.priorAmountObservationCount == 0L)
+    assertState(tester, "a", 1L, 100.0, 0.0)
+    assertState(tester, "b", 1L, 300.0, 0.0)
+    intercept[IllegalArgumentException] {
+      tester.test("a", List(input("a", 1L, "12:01", "200").copy(kafkaPartition = 1)))
+    }
+    intercept[IllegalArgumentException] {
+      tester.test("a", List(input("a", 0L, "12:01", "200")))
+    }
+  }
+
+  test("authoritative inactivity timer expires state and reactivation starts without history") {
+    val tester = newTester()
+    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    val timer = state(tester, "a").expiryTimerMs
+    assert(tester.setWatermark(timer).isEmpty)
+    assert(
+      tester
+        .peekValueState[CustomerAmountStatistics](CustomerAmountStatisticsProcessor.StateName, "a")
+        .isEmpty
+    )
+    val reactivated = tester.test("a", List(input("a", 1L, "13:01", "200"))).head
+    assert(reactivated.priorAmountObservationCount == 0L)
+    assert(reactivated.statisticalFeatureStatus == "NO_HISTORY")
+  }
+
+  test("replaced timer callback cannot remove newer state") {
+    val processor = new CustomerAmountStatisticsProcessor(Duration.ofHours(1))
+    val tester = newTester(processor)
+    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    val oldTimer = state(tester, "a").expiryTimerMs
+    tester.test("a", List(input("a", 1L, "12:10", "200")))
+    assert(state(tester, "a").expiryTimerMs > oldTimer)
+    assert(
+      processor
+        .handleExpiredTimer(
+          "a",
+          new TimerValues {
+            override def getCurrentProcessingTimeInMs(): Long = 0L
+            override def getCurrentWatermarkInMs(): Long = oldTimer
+          },
+          new ExpiredTimerInfo {
+            override def getExpiryTimeInMs(): Long = oldTimer
+          }
+        )
+        .isEmpty
+    )
+    assertState(tester, "a", 2L, 150.0, 5000.0)
+  }
+
+  test("only negligible negative variance is clamped; invalid numeric state fails") {
+    assert(CustomerAmountStatisticsProcessor.checkedVariance(-1e-13) == 0.0)
+    intercept[IllegalStateException] {
+      CustomerAmountStatisticsProcessor.checkedVariance(-1e-6)
+    }
+    intercept[IllegalArgumentException] {
+      CustomerAmountStatisticsProcessor.checkedVariance(Double.NaN)
+    }
+    intercept[IllegalArgumentException] {
+      CustomerAmountStatisticsProcessor.finite(Double.PositiveInfinity, "test")
+    }
+    intercept[IllegalArgumentException] {
+      TransactionStatisticalFeatures(
+        input("a", 0L, "12:00", "100"),
+        2L,
+        Some(Double.NaN),
+        Some(1.0),
+        None,
+        "READY"
+      )
+    }
+  }
+
+  private def newTester(
+      processor: CustomerAmountStatisticsProcessor = new CustomerAmountStatisticsProcessor(
+        Duration.ofHours(1)
+      )
+  ): TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures] =
+    new TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures](
+      processor = processor,
+      timeMode = TimeMode.EventTime(),
+      outputMode = OutputMode.Update(),
+      eventTimeExtractor = Some(_.eventTime.getTime)
+    )
+
+  private def state(
+      tester: TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures],
+      key: String
+  ): CustomerAmountStatistics =
+    tester
+      .peekValueState[CustomerAmountStatistics](CustomerAmountStatisticsProcessor.StateName, key)
+      .get
+
+  private def assertState(
+      tester: TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures],
+      key: String,
+      count: Long,
+      mean: Double,
+      m2: Double
+  ): Unit = {
+    val current = state(tester, key)
+    assert(current.count == count)
+    assertClose(current.mean, mean)
+    assertClose(current.m2, m2)
+  }
+
+  private def assertClose(actual: Double, expected: Double): Unit =
+    assert(math.abs(actual - expected) < 1e-8)
+
+  private def input(
+      customer: String,
+      offset: Long,
+      hhmm: String,
+      amount: String
+  ): TransactionCustomerFeatures = {
+    val time = Timestamp.from(instant(s"2030-01-01T${hhmm}:00Z"))
+    TransactionCustomerFeatures(
+      s"event-$customer-$offset",
+      s"transaction-$customer-$offset",
+      customer,
+      "merchant",
+      time,
+      time,
+      new java.math.BigDecimal(amount),
+      "USD",
+      "US",
+      "device",
+      "192.0.2.1",
+      "CARD_PAYMENT",
+      1,
+      customer,
+      "transactions.raw",
+      0,
+      offset,
+      time,
+      0L,
+      "0.0000"
+    )
+  }
+
+  private def instant(value: String): Instant = Instant.parse(value)
+
+  private def epochMicros(hhmm: String): Long =
+    instant(s"2030-01-01T${hhmm}:00Z").getEpochSecond * 1000000L
+}

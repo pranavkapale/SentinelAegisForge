@@ -1,4 +1,4 @@
-.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication process-customer-state inspect-customer-state reset-customer-state process-rolling-features inspect-rolling-features reset-rolling-features
+.PHONY: verify verify-scala verify-python infra-up infra-down infra-status infra-reset verify-infra produce-sample consume-sample ingest-delta inspect-delta reset-delta deduplicate-transactions inspect-deduplicated reset-deduplication process-customer-state inspect-customer-state reset-customer-state process-rolling-features inspect-rolling-features reset-rolling-features process-statistical-features inspect-statistical-features reset-statistical-features
 
 COUNT ?= 10
 SEED ?= 42
@@ -20,6 +20,10 @@ CUSTOMER_STATE_DELTA_TXN_APP_ID ?= sentinel-customer-activity-snapshots-v1
 FEATURE_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_customer_features
 FEATURE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-rolling-features
 FEATURE_DELTA_TXN_APP_ID ?= sentinel-transaction-customer-features-v1
+STATISTICAL_FEATURE_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_statistical_features
+STATISTICAL_FEATURE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-statistical-features
+STATISTICAL_FEATURE_DELTA_TXN_APP_ID ?= sentinel-transaction-statistical-features-v1
+STATISTICAL_FEATURE_INACTIVITY ?= 24 hours
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -103,3 +107,13 @@ inspect-rolling-features:
 reset-rolling-features:
 	@echo "Removing the default local rolling-feature table and its coupled checkpoint."
 	bash scripts/reset-local-rolling-features.sh
+
+process-statistical-features:
+	cd streaming-engine && WATERMARK_DELAY="$(WATERMARK_DELAY)" STATISTICAL_FEATURE_INACTIVITY="$(STATISTICAL_FEATURE_INACTIVITY)" sbt "runMain io.sentinelaegisforge.streaming.processing.statisticalfeatures.TransactionStatisticalFeatureApp --source-delta-path=$(FEATURE_DELTA_PATH) --target-delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --checkpoint-location=$(STATISTICAL_FEATURE_CHECKPOINT_DIR) --delta-txn-app-id=$(STATISTICAL_FEATURE_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER)"
+
+inspect-statistical-features:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.statisticalfeatures.TransactionStatisticalFeatureInspectionApp --delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+reset-statistical-features:
+	@echo "Removing the default local statistical-feature table and its coupled checkpoint."
+	bash scripts/reset-local-statistical-features.sh
