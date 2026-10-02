@@ -50,7 +50,9 @@ object StatisticalFeatureTransformer {
 
     implicit val outputEncoder = Encoders.product[TransactionStatisticalFeatures]
     input
-      .groupByKey(_.customerId)(Encoders.STRING)
+      .groupByKey(input => CustomerCurrencyKey(input.customerId, input.currency))(
+        Encoders.product[CustomerCurrencyKey]
+      )
       .transformWithState(
         new CustomerAmountStatisticsProcessor(inactivityTimeout),
         TimeMode.EventTime(),

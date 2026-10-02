@@ -2,8 +2,8 @@
 set -euo pipefail
 
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-delta_path="${repository_root}/.local/delta/transaction_customer_features"
-checkpoint_path="${repository_root}/.local/checkpoints/customer-rolling-features"
+delta_path="${repository_root}/.local/delta/transaction_customer_features_v2"
+checkpoint_path="${repository_root}/.local/checkpoints/customer-rolling-features-v2"
 
 for target in "${delta_path}" "${checkpoint_path}"; do
   case "${target}" in
@@ -15,4 +15,4 @@ for target in "${delta_path}" "${checkpoint_path}"; do
   esac
 done
 
-echo "Removed the default local rolling-feature table and coupled state checkpoint."
+echo "Removed the default local v2 rolling-feature table and coupled state checkpoint; v1 paths are untouched."

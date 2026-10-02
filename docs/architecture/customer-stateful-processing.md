@@ -32,6 +32,8 @@ There is one constant-sized `ValueState[CustomerActivityState]` named `customerA
 
 Overflow beyond `decimal(38,18)` or `Long` count capacity fails explicitly. The scale of 18 matches Spark's product encoder representation while retaining the existing four-decimal transaction amounts exactly.
 
+Currency-safety caveat: these preserved Phase 8 lifecycle totals do not retain currency context. For mixed-currency inputs they are numeric diagnostics, not a meaningful monetary balance or decision feature. They are not an input to Phase 9/10; the currency-safe monetary feature contract is defined separately in [ADR-020](../adr/ADR-020-currency-safe-monetary-feature-semantics.md). This correction does not rewrite Phase 8 state or historical snapshots.
+
 ## Key and update semantics
 
 `customer_id` is the state key, consistent with the Kafka partition-key decision. Input ordering within a micro-batch is not assumed. Each customer invocation calculates batch count, exact batch total, and min/max event times before combining them with restored state. One `UPDATED` snapshot is emitted per customer invocation rather than one row per transaction.

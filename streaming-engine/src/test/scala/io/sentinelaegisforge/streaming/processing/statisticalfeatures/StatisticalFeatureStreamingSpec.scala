@@ -47,10 +47,10 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
   test("configuration has a separate source, target, checkpoint and transaction identity") {
     val config =
       TransactionStatisticalFeatureApp.parseArguments(Array.empty).fold(fail(_), identity)
-    assert(config.sourceDeltaPath == ".local/delta/transaction_customer_features")
-    assert(config.targetDeltaPath == ".local/delta/transaction_statistical_features")
-    assert(config.checkpointLocation == ".local/checkpoints/customer-statistical-features")
-    assert(config.deltaTxnAppId == "sentinel-transaction-statistical-features-v1")
+    assert(config.sourceDeltaPath == ".local/delta/transaction_customer_features_v2")
+    assert(config.targetDeltaPath == ".local/delta/transaction_statistical_features_v2")
+    assert(config.checkpointLocation == ".local/checkpoints/customer-statistical-features-v2")
+    assert(config.deltaTxnAppId == "sentinel-transaction-statistical-features-v2")
     assert(config.inactivityTimeout.toHours == 24L)
     assert(
       StatisticalFeatureConfig.RequiredStateStoreProvider.endsWith("RocksDBStateStoreProvider")
@@ -62,7 +62,7 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
     val source = root.resolve("transaction_customer_features").toString
     val target = root.resolve("transaction_statistical_features").toString
     val checkpoint = root.resolve("checkpoint").toString
-    val appId = "sentinel-test-statistical-features-v1"
+    val appId = "sentinel-test-statistical-features-v2"
 
     appendSource(
       source,
@@ -110,6 +110,66 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
         .head()
         .getSeq[String](0)
         .isEmpty
+    )
+  }
+
+  test("v2 checkpoint restores independent customer-currency baselines across runs") {
+    val root = Files.createTempDirectory("sentinel-statistical-currency-v2")
+    val source = root.resolve("rolling-v2").toString
+    val target = root.resolve("statistics-v2").toString
+    val checkpoint = root.resolve("statistics-v2-checkpoint").toString
+    val appId = "sentinel-test-statistical-currency-v2"
+    appendSource(
+      source,
+      Seq(
+        input("a", 0L, "12:00", "100"),
+        input("a", 1L, "12:01", "1000", "EUR"),
+        input("a", 2L, "12:02", "200")
+      )
+    )
+    runQuery(source, target, checkpoint, appId)
+    val firstEur = row(target, "a", 1L)
+    assert(firstEur.getAs[Long]("prior_amount_observation_count") == 0L)
+    assert(firstEur.getAs[String]("statistical_feature_status") == "NO_HISTORY")
+    val secondUsd = row(target, "a", 2L)
+    assert(secondUsd.getAs[Long]("prior_amount_observation_count") == 1L)
+    assertClose(secondUsd.getAs[Double]("prior_amount_mean"), 100.0)
+
+    appendSource(
+      source,
+      Seq(
+        input("a", 3L, "12:03", "300"),
+        input("a", 4L, "12:04", "1200", "EUR")
+      )
+    )
+    val recoveredProgress = runQuery(source, target, checkpoint, appId)
+    assert(recoveredProgress.exists(_.stateOperators.exists(_.numRowsTotal == 2L)))
+    val usd = row(target, "a", 3L)
+    assert(usd.getAs[String]("currency") == "USD")
+    assert(usd.getAs[Long]("prior_amount_observation_count") == 2L)
+    assertClose(usd.getAs[Double]("prior_amount_mean"), 150.0)
+    assertClose(usd.getAs[Double]("prior_amount_stddev"), math.sqrt(5000.0))
+    assertClose(usd.getAs[Double]("amount_zscore"), 150.0 / math.sqrt(5000.0))
+    assert(usd.getAs[String]("statistical_feature_status") == "READY")
+    val eur = row(target, "a", 4L)
+    assert(eur.getAs[String]("currency") == "EUR")
+    assert(eur.getAs[Long]("prior_amount_observation_count") == 1L)
+    assertClose(eur.getAs[Double]("prior_amount_mean"), 1000.0)
+    assert(eur.isNullAt(eur.fieldIndex("prior_amount_stddev")))
+    assert(eur.isNullAt(eur.fieldIndex("amount_zscore")))
+    assert(eur.getAs[String]("statistical_feature_status") == "INSUFFICIENT_VARIANCE_HISTORY")
+    assert(spark.read.format("delta").load(target).count() == 5L)
+    assert(spark.read.format("delta").load(source).count() == 5L)
+    assert(row(target, "a", 1L) == firstEur)
+    assert(
+      spark.read
+        .format("delta")
+        .load(target)
+        .schema
+        .fields
+        .toVector
+        .map(f => f.name -> f.dataType) ==
+        TransactionStatisticalFeatureDeltaSchema.columns
     )
   }
 
@@ -183,7 +243,8 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
       customer: String,
       offset: Long,
       hhmm: String,
-      amount: String
+      amount: String,
+      currency: String = "USD"
   ): TransactionCustomerFeatures = {
     val time = Timestamp.from(Instant.parse(s"2030-01-01T${hhmm}:00Z"))
     TransactionCustomerFeatures(
@@ -194,7 +255,7 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
       time,
       time,
       new java.math.BigDecimal(amount),
-      "USD",
+      currency,
       "US",
       "device",
       "192.0.2.1",

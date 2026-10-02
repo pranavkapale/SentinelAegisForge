@@ -4,6 +4,8 @@
 
 Accepted
 
+Statistical identity is refined for feature semantic v2 by [ADR-020](ADR-020-currency-safe-monetary-feature-semantics.md): each baseline is customer+currency specific. The original customer-wide v1 decision below is retained as history; score-before-update and numerical semantics remain unchanged.
+
 ## Context
 
 The Phase 9 table already contains the original transaction, Kafka lineage, and prior-only event-time rolling features. A later decision engine needs a per-transaction statistical baseline without letting the current amount influence its own score. Late event-time arrivals make online observation order different from historical event-time order.

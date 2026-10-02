@@ -17,7 +17,7 @@ import io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionCus
 final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
   test("first observation has no prior history; canonical Welford sequence scores before update") {
     val tester = newTester()
-    val first = tester.test("a", List(input("a", 0L, "12:00", "100"))).head
+    val first = tester.test(key("a"), List(input("a", 0L, "12:00", "100"))).head
     assert(first.priorAmountObservationCount == 0L)
     assert(first.priorAmountMean.isEmpty)
     assert(first.priorAmountStddev.isEmpty)
@@ -25,7 +25,7 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
     assert(first.statisticalFeatureStatus == "NO_HISTORY")
     assertState(tester, "a", 1L, 100.0, 0.0)
 
-    val second = tester.test("a", List(input("a", 1L, "12:01", "200"))).head
+    val second = tester.test(key("a"), List(input("a", 1L, "12:01", "200"))).head
     assert(second.priorAmountObservationCount == 1L)
     assert(second.priorAmountMean.contains(100.0))
     assert(second.priorAmountStddev.isEmpty)
@@ -33,7 +33,7 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
     assert(second.statisticalFeatureStatus == "INSUFFICIENT_VARIANCE_HISTORY")
     assertState(tester, "a", 2L, 150.0, 5000.0)
 
-    val third = tester.test("a", List(input("a", 2L, "12:02", "300"))).head
+    val third = tester.test(key("a"), List(input("a", 2L, "12:02", "300"))).head
     assert(third.priorAmountObservationCount == 2L)
     assertClose(third.priorAmountMean.get, 150.0)
     assertClose(third.priorAmountStddev.get, math.sqrt(5000.0))
@@ -44,8 +44,8 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
 
   test("zero variance never creates a non-finite z-score") {
     val tester = newTester()
-    (0L until 3L).foreach(offset => tester.test("a", List(input("a", offset, "12:00", "100"))))
-    val scored = tester.test("a", List(input("a", 3L, "12:01", "150"))).head
+    (0L until 3L).foreach(offset => tester.test(key("a"), List(input("a", offset, "12:00", "100"))))
+    val scored = tester.test(key("a"), List(input("a", 3L, "12:01", "150"))).head
     assert(scored.priorAmountObservationCount == 3L)
     assert(scored.priorAmountMean.contains(100.0))
     assert(scored.priorAmountStddev.contains(0.0))
@@ -59,8 +59,8 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
       input("a", 0L, "12:10", "100"),
       input("a", 1L, "12:00", "200")
     )
-    val forward = newTester().test("a", rows)
-    val reverse = newTester().test("a", rows.reverse)
+    val forward = newTester().test(key("a"), rows)
+    val reverse = newTester().test(key("a"), rows.reverse)
     assert(forward == reverse)
     assert(forward.map(_.base.kafkaOffset) == List(0L, 1L, 2L))
     assert(forward.map(_.priorAmountObservationCount) == List(0L, 1L, 2L))
@@ -69,16 +69,16 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
 
   test("late event is scored against already observed later event times") {
     val tester = newTester()
-    tester.test("a", List(input("a", 0L, "12:00", "100")))
-    tester.test("a", List(input("a", 1L, "12:10", "200")))
-    val late = tester.test("a", List(input("a", 2L, "12:05", "300"))).head
+    tester.test(key("a"), List(input("a", 0L, "12:00", "100")))
+    tester.test(key("a"), List(input("a", 1L, "12:10", "200")))
+    val late = tester.test(key("a"), List(input("a", 2L, "12:05", "300"))).head
     assert(late.priorAmountObservationCount == 2L)
     assertClose(late.priorAmountMean.get, 150.0)
     assertClose(late.amountZscore.get, 150.0 / math.sqrt(5000.0))
     val state = tester
       .peekValueState[CustomerAmountStatistics](
         CustomerAmountStatisticsProcessor.StateName,
-        "a"
+        key("a")
       )
       .get
     assert(state.latestEventTimeMicros == epochMicros("12:10"))
@@ -87,30 +87,33 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
 
   test("customers are independent and partition or offset lineage violation fails") {
     val tester = newTester()
-    tester.test("a", List(input("a", 0L, "12:00", "100")))
-    val b = tester.test("b", List(input("b", 0L, "12:00", "300"))).head
+    tester.test(key("a"), List(input("a", 0L, "12:00", "100")))
+    val b = tester.test(key("b"), List(input("b", 0L, "12:00", "300"))).head
     assert(b.priorAmountObservationCount == 0L)
     assertState(tester, "a", 1L, 100.0, 0.0)
     assertState(tester, "b", 1L, 300.0, 0.0)
     intercept[IllegalArgumentException] {
-      tester.test("a", List(input("a", 1L, "12:01", "200").copy(kafkaPartition = 1)))
+      tester.test(key("a"), List(input("a", 1L, "12:01", "200").copy(kafkaPartition = 1)))
     }
     intercept[IllegalArgumentException] {
-      tester.test("a", List(input("a", 0L, "12:01", "200")))
+      tester.test(key("a"), List(input("a", 0L, "12:01", "200")))
     }
   }
 
   test("authoritative inactivity timer expires state and reactivation starts without history") {
     val tester = newTester()
-    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    tester.test(key("a"), List(input("a", 0L, "12:00", "100")))
     val timer = state(tester, "a").expiryTimerMs
     assert(tester.setWatermark(timer).isEmpty)
     assert(
       tester
-        .peekValueState[CustomerAmountStatistics](CustomerAmountStatisticsProcessor.StateName, "a")
+        .peekValueState[CustomerAmountStatistics](
+          CustomerAmountStatisticsProcessor.StateName,
+          key("a")
+        )
         .isEmpty
     )
-    val reactivated = tester.test("a", List(input("a", 1L, "13:01", "200"))).head
+    val reactivated = tester.test(key("a"), List(input("a", 1L, "13:01", "200"))).head
     assert(reactivated.priorAmountObservationCount == 0L)
     assert(reactivated.statisticalFeatureStatus == "NO_HISTORY")
   }
@@ -118,14 +121,14 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
   test("replaced timer callback cannot remove newer state") {
     val processor = new CustomerAmountStatisticsProcessor(Duration.ofHours(1))
     val tester = newTester(processor)
-    tester.test("a", List(input("a", 0L, "12:00", "100")))
+    tester.test(key("a"), List(input("a", 0L, "12:00", "100")))
     val oldTimer = state(tester, "a").expiryTimerMs
-    tester.test("a", List(input("a", 1L, "12:10", "200")))
+    tester.test(key("a"), List(input("a", 1L, "12:10", "200")))
     assert(state(tester, "a").expiryTimerMs > oldTimer)
     assert(
       processor
         .handleExpiredTimer(
-          "a",
+          key("a"),
           new TimerValues {
             override def getCurrentProcessingTimeInMs(): Long = 0L
             override def getCurrentWatermarkInMs(): Long = oldTimer
@@ -162,12 +165,84 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
     }
   }
 
+  test("alternating currencies isolate prior statistics, M2 and observed offsets") {
+    val tester = newTester()
+    val usd = key("a")
+    val eur = key("a", "EUR")
+    tester.test(usd, List(input("a", 0L, "12:00", "100")))
+    val firstEur = tester.test(eur, List(input("a", 1L, "12:01", "1000", "EUR"))).head
+    assert(firstEur.priorAmountObservationCount == 0L)
+    assert(firstEur.priorAmountMean.isEmpty)
+    assert(firstEur.statisticalFeatureStatus == "NO_HISTORY")
+    val secondUsd = tester.test(usd, List(input("a", 2L, "12:02", "200"))).head
+    assert(secondUsd.priorAmountObservationCount == 1L)
+    assert(secondUsd.priorAmountMean.contains(100.0))
+    assert(secondUsd.priorAmountStddev.isEmpty)
+    assert(secondUsd.amountZscore.isEmpty)
+    val secondEur = tester.test(eur, List(input("a", 3L, "12:03", "1200", "EUR"))).head
+    assert(secondEur.priorAmountObservationCount == 1L)
+    assert(secondEur.priorAmountMean.contains(1000.0))
+    val thirdUsd = tester.test(usd, List(input("a", 4L, "12:04", "300"))).head
+    assert(thirdUsd.priorAmountObservationCount == 2L)
+    assertClose(thirdUsd.priorAmountMean.get, 150.0)
+    assertClose(thirdUsd.priorAmountStddev.get, math.sqrt(5000.0))
+    assertClose(thirdUsd.amountZscore.get, 150.0 / math.sqrt(5000.0))
+    assert(thirdUsd.statisticalFeatureStatus == "READY")
+    assertState(tester, "a", 3L, 200.0, 20000.0)
+    val eurState = state(tester, "a", "EUR")
+    assert(eurState.count == 2L)
+    assertClose(eurState.mean, 1100.0)
+    assertClose(eurState.m2, 20000.0)
+    assert(state(tester, "a").lastObservedKafkaOffset == 4L)
+    assert(eurState.lastObservedKafkaOffset == 3L)
+    assert(eurState.observedKafkaPartition == state(tester, "a").observedKafkaPartition)
+  }
+
+  test("currency-specific expiry and reactivation leave another currency active") {
+    val tester = newTester()
+    tester.test(key("a"), List(input("a", 0L, "12:00", "100")))
+    tester.test(key("a", "EUR"), List(input("a", 1L, "12:30", "1000", "EUR")))
+    val usdTimer = state(tester, "a").expiryTimerMs
+    val eurBefore = state(tester, "a", "EUR")
+    assert(usdTimer < eurBefore.expiryTimerMs)
+    assert(tester.setWatermark(usdTimer).isEmpty)
+    assert(
+      tester
+        .peekValueState[CustomerAmountStatistics](
+          CustomerAmountStatisticsProcessor.StateName,
+          key("a")
+        )
+        .isEmpty
+    )
+    assert(state(tester, "a", "EUR") == eurBefore)
+    val usdAgain = tester.test(key("a"), List(input("a", 2L, "13:01", "200"))).head
+    assert(usdAgain.priorAmountObservationCount == 0L)
+    assert(usdAgain.statisticalFeatureStatus == "NO_HISTORY")
+    assert(state(tester, "a", "EUR") == eurBefore)
+    val eurAgain = tester.test(key("a", "EUR"), List(input("a", 3L, "13:02", "1200", "EUR"))).head
+    assert(eurAgain.priorAmountObservationCount == 1L)
+    assert(eurAgain.priorAmountMean.contains(1000.0))
+    assertState(tester, "a", 1L, 200.0, 0.0)
+  }
+
+  test("statistical key must match both customer and currency") {
+    intercept[IllegalArgumentException] {
+      newTester().test(key("a"), List(input("a", 0L, "12:00", "100", "EUR")))
+    }
+    intercept[IllegalArgumentException] {
+      newTester().test(key("b"), List(input("a", 0L, "12:00", "100")))
+    }
+  }
+
+  private def key(customer: String, currency: String = "USD"): CustomerCurrencyKey =
+    CustomerCurrencyKey(customer, currency)
+
   private def newTester(
       processor: CustomerAmountStatisticsProcessor = new CustomerAmountStatisticsProcessor(
         Duration.ofHours(1)
       )
-  ): TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures] =
-    new TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures](
+  ): TwsTester[CustomerCurrencyKey, TransactionCustomerFeatures, TransactionStatisticalFeatures] =
+    new TwsTester[CustomerCurrencyKey, TransactionCustomerFeatures, TransactionStatisticalFeatures](
       processor = processor,
       timeMode = TimeMode.EventTime(),
       outputMode = OutputMode.Update(),
@@ -175,15 +250,27 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
     )
 
   private def state(
-      tester: TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures],
-      key: String
+      tester: TwsTester[
+        CustomerCurrencyKey,
+        TransactionCustomerFeatures,
+        TransactionStatisticalFeatures
+      ],
+      customer: String,
+      currency: String = "USD"
   ): CustomerAmountStatistics =
     tester
-      .peekValueState[CustomerAmountStatistics](CustomerAmountStatisticsProcessor.StateName, key)
+      .peekValueState[CustomerAmountStatistics](
+        CustomerAmountStatisticsProcessor.StateName,
+        key(customer, currency)
+      )
       .get
 
   private def assertState(
-      tester: TwsTester[String, TransactionCustomerFeatures, TransactionStatisticalFeatures],
+      tester: TwsTester[
+        CustomerCurrencyKey,
+        TransactionCustomerFeatures,
+        TransactionStatisticalFeatures
+      ],
       key: String,
       count: Long,
       mean: Double,
@@ -202,7 +289,8 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
       customer: String,
       offset: Long,
       hhmm: String,
-      amount: String
+      amount: String,
+      currency: String = "USD"
   ): TransactionCustomerFeatures = {
     val time = Timestamp.from(instant(s"2030-01-01T${hhmm}:00Z"))
     TransactionCustomerFeatures(
@@ -213,7 +301,7 @@ final class CustomerAmountStatisticsProcessorSpec extends AnyFunSuite {
       time,
       time,
       new java.math.BigDecimal(amount),
-      "USD",
+      currency,
       "US",
       "device",
       "192.0.2.1",

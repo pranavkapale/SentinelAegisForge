@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 10 — Prior-State Statistical Anomaly Features
+Phase 10.1 — Currency-Safe Monetary Feature Compatibility Correction
 
-The verified Phase 0 through Phase 9 foundations remain intact. Phase 10 independently consumes the Phase 9 customer-feature Delta boundary and appends prior-observed statistical amount features per watermark-eligible transaction row. Earlier tables, state, and checkpoints remain separate. No fraud decisioning is implemented.
+The Phase 0–10 foundations are preserved. This verified correctness correction refines Phase 9 and Phase 10 monetary feature semantics before decisioning: velocity stays customer-wide, rolling amount sums use the current currency, and prior-observed Welford statistics use customer+currency state. Fresh feature semantic v2 checkpoints, output paths, and Delta transaction IDs supersede v1 monetary semantics without modifying historical rows or state. No risk engine is implemented.
 
 ## Implemented Capabilities
 
@@ -55,26 +55,29 @@ The verified Phase 0 through Phase 9 foundations remain intact. Phase 10 indepen
 - Docker-independent local Spark/Delta tests for duplicate suppression, watermark advancement, too-late drops, eligible out-of-order data, retained first-occurrence metadata, and sink retry safety.
 - Spark 4.2 arbitrary state API v2 processing with `transformWithState`, `StatefulProcessor`, `TimeMode.EventTime`, and `OutputMode.Update`.
 - One constant-sized `ValueState[CustomerActivityState]` named `customerActivity` per active `customer_id`.
-- Exact `decimal(38,18)` customer amount totals, checked count arithmetic, order-independent first/latest event-time updates, and explicit overflow failures.
+- Exact `decimal(38,18)` numeric amount totals in the preserved Phase 8 lifecycle diagnostic, checked count arithmetic, order-independent first/latest event-time updates, and explicit overflow failures. Those legacy totals lack currency context and are not monetary decision features.
 - Replaceable event-time inactivity timers guarded by the authoritative stored timer timestamp, with state-variable TTL disabled.
 - Durable `UPDATED` and `EXPIRED` customer lifecycle snapshots in an unpartitioned `customer_activity_snapshots` Delta table.
 - Dedicated customer-state checkpoint and retry-safe snapshot sink using stable `txnAppId` plus `txnVersion=batchId`.
 - Watermark, state-row, state-memory, shuffle-partition, state-store-instance, and custom state-metric reporting.
 - Direct `TwsTester` state-machine tests plus a real Docker-independent local Spark/Delta checkpoint-recovery test.
 - Narrow Phase 8 RocksDB state-store configuration required by Spark 4.2 streaming `transformWithState`; earlier query sessions remain unchanged.
-- Independent customer-keyed Phase 9 `transformWithState` query with `prior_transaction_count_5m` and `prior_amount_sum_10m` using inclusive lower and exclusive upper event-time bounds.
+- Independent customer-keyed Phase 9 `transformWithState` query: customer-wide `prior_transaction_count_5m` and same-current-currency `prior_amount_sum_10m`, using inclusive lower and exclusive upper event-time bounds.
 - Feature-before-update processing with equal-timestamp peer exclusion and event-time filtering of already stored future records.
-- Minimal `rollingEvents` MapState keyed by `event_id`, one authoritative `nextCleanupTimerMs` ValueState per active customer, and watermark-driven ten-minute history cleanup.
+- Minimal `rollingEvents` MapState keyed by `event_id` retaining event time, amount, and currency, one authoritative `nextCleanupTimerMs` ValueState per active customer, and watermark-driven ten-minute history cleanup.
 - Microsecond-precise window comparisons, upward-rounded millisecond cleanup timers, and checked exact `decimal(38,4)` feature sums.
-- Append-only, unpartitioned `transaction_customer_features` Delta output retaining all 18 source event and Kafka lineage fields plus two feature columns.
+- Append-only, unpartitioned `transaction_customer_features_v2` Delta output retaining all 18 source event and Kafka lineage fields plus two feature columns.
 - Dedicated Phase 9 checkpoint and retry-safe Delta sink application ID; RocksDB is selected only for this Spark 4.2 `transformWithState` application and its integration test session.
 - `TwsTester`, temporary Spark/Delta, and controlled live evidence for online feature semantics, checkpoint recovery, out-of-order arrivals, state cleanup, and sink retry protection.
-- Independent customer-keyed Phase 10 `transformWithState` query consuming `transaction_customer_features` and appending prior amount count, mean, sample standard deviation, z-score, and explicit status to `transaction_statistical_features`.
-- One constant-sized `ValueState[CustomerAmountStatistics]` per active customer using Welford count/mean/M2, finite-value checks, score-before-update order, and deterministic Kafka partition/offset observation order.
-- Explicit failure on active customer Kafka partition remapping or non-advancing offset; late event-time rows can use previously observed later event-time amounts without rewriting earlier output.
-- Replaceable event-time inactivity timer, watermark-driven state expiry/reset, and stale-callback protection with state-variable TTL disabled.
+- Independent customer-currency-keyed Phase 10 `transformWithState` query consuming `transaction_customer_features_v2` and appending prior amount count, mean, sample standard deviation, z-score, and explicit status to `transaction_statistical_features_v2`.
+- One constant-sized `ValueState[CustomerAmountStatistics]` per active `CustomerCurrencyKey(customerId, currency)` using Welford count/mean/M2, finite-value checks, score-before-update order, and deterministic Kafka partition/offset observation order.
+- Explicit failure on active customer-currency Kafka partition remapping or non-advancing offset; late event-time rows can use previously observed later event-time amounts without rewriting earlier output.
+- Independent replaceable event-time inactivity timers per customer-currency pair, watermark-driven state expiry/reset, and stale-callback protection with state-variable TTL disabled.
 - Append-only, unpartitioned 25-column statistical Delta output preserving all 20 Phase 9 fields, exact decimal amounts, Kafka lineage, and a dedicated checkpoint and retry-safe Delta transaction application ID.
 - Docker-independent processor and local Spark/Delta tests plus a controlled live five-event path through producer, Kafka, validation, deduplication, rolling features, and statistical features.
+
+- Currency-safe feature semantic v2 with dedicated `customer-rolling-features-v2` / `customer-statistical-features-v2` checkpoints and `sentinel-transaction-customer-features-v2` / `sentinel-transaction-statistical-features-v2` transaction application IDs; reset interfaces affect only v2 defaults.
+- Nine additional mixed-currency tests covering rolling membership, unchanged temporal bounds/peers, per-currency Welford baselines, independent expiry/reactivation, and temporary Delta checkpoint recovery.
 
 No DLQ, late-event side output, merchant/device cardinality state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, and the customer state queries are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
@@ -87,7 +90,7 @@ No DLQ, late-event side output, merchant/device cardinality state, fraud decisio
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the Phase 9 rolling-feature table. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the corrected Phase 9 v2 rolling-feature table. Behavioral velocity uses the customer dimension; raw monetary features use customer+currency. Kafka stays keyed by customer; currency switching leaves routing unchanged. The existing `currency` column denominates sums, means, and standard deviations. The two runtime modules have no integration with each other.
 
 ## Runtime Baseline
 
@@ -115,6 +118,7 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-017: Rolling feature state retention](docs/adr/ADR-017-rolling-feature-state-retention.md)
 - [ADR-018: Customer statistical feature semantics](docs/adr/ADR-018-customer-statistical-feature-semantics.md)
 - [ADR-019: Customer statistical state lifecycle](docs/adr/ADR-019-customer-statistical-state-lifecycle.md)
+- [ADR-020: Currency-safe monetary feature semantics](docs/adr/ADR-020-currency-safe-monetary-feature-semantics.md)
 
 ## Verification Status
 
@@ -297,6 +301,8 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 
 ### Phase 9 verification
 
+Historical v1 evidence below is preserved. Its cross-currency monetary sums are superseded by ADR-020; time, recovery, and retry evidence does not establish dimensional monetary validity.
+
 - The pre-change worktree was clean. The resolved runtime remained Temurin JDK 21.0.12.1, Scala 2.13.18, sbt 2.0.9, Spark 4.2.0, and Delta Lake 4.4.0. No direct dependency was added.
 - Spark 4.2's resolved `MapState`, timer, `StatefulProcessorHandle`, and `TwsTester` APIs were inspected before implementation. The Phase 9 application/test session selects RocksDB only because streaming `transformWithState` requires it in the pinned runtime.
 - `sbt "clean ; compile"`: passed; 55 production Scala sources compiled.
@@ -311,6 +317,8 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 
 ### Phase 10 verification
 
+Historical v1 evidence below is preserved. Its customer-wide mixed-currency statistical baseline is superseded by ADR-020 and must not be used for decisioning.
+
 - The pre-change worktree was clean. The effective runtime remained Temurin JDK 21.0.12.1, Scala 2.13.18, sbt 2.0.9, Spark 4.2.0, and Delta Lake 4.4.0. Resolved Spark 4.2 `ValueState`, timer, handle, and `TwsTester` APIs were inspected. `sbt evicted` passed and retained the previously documented Netty/SLF4J transitive-version warnings; no direct dependency was added.
 - Final `sbt "clean ; compile"`: passed; 63 production Scala sources compiled. Forced `sbt "Test / testOnly *"`: passed after the final finite-constructor guard with 70 tests across 17 suites. The 11 new tests exercise Welford prior-state output, sample variance, zero variance, transport ordering, late observed semantics, customer isolation, partition/offset violation, expiry/reset, stale timers, numerical checks, temporary Delta checkpoint restoration, exact/preserved source columns, and Delta retry suppression.
 - Local Spark/Delta restart with the same Phase 10 checkpoint restored customer A's 100/200 baseline. The following 300 row had prior count 2, prior mean 150, sample standard deviation `70.710678...`, and z-score `2.121320...`; customer B remained independent. A repeated output batch with the same `txnAppId` and `txnVersion=0` left row count and Delta history unchanged.
@@ -321,15 +329,38 @@ The Scala and JDK blockers above describe the earlier runtime-baseline migration
 - `make infra-down` stopped Kafka and Schema Registry after live verification without deleting the broker volume.
 - With infrastructure stopped, `sbt scalafmtCheckAll`, `make verify-scala`, `make verify-python`, and `make verify` passed. The forced Scala run supplies the 70-test evidence; subsequent sbt incremental `test` invocations correctly had no changed tests to rerun. Python 3.13.9 pytest, Ruff, and mypy passed. `bash -n scripts/reset-local-statistical-features.sh` and `git diff --check` passed.
 
+### Phase 10.1 currency-safe compatibility correction verification
+
+- Pre-change worktree: clean `main`, with Phase 10 committed and 70 tests previously verified across 17 suites. The configured runtime/dependency baseline is unchanged; zero new direct dependencies. Explicit project Java selection reported Temurin JDK 21.0.12.1. Python checks used 3.13.9.
+- `sbt "scalafmtAll ; clean ; compile ; Test / testOnly *RollingFeature* *StatisticalFeature* *CustomerAmountStatistics*"`: passed; 30 tests across the four affected suites. No earlier assertions were removed or weakened; existing statistical processor tests now supply the explicit customer-currency key.
+- Mixed rolling example USD 100 at 12:00, EUR 200 at 12:01, USD 300 at 12:02: the last row has customer-wide count 2 and USD-only sum 100. A subsequent EUR event sees only EUR monetary history. Exact lower-bound USD 100 at 12:00 is included for 12:10 USD while same-time EUR 500 is excluded. Out-of-order 12:08 USD excludes stored 12:05 EUR and future 12:10 USD; equal-time peers remain excluded.
+- Alternating statistical observations USD 100, EUR 1000, USD 200, EUR 1200, USD 300: independent final states are USD count 3 / mean 200 / M2 20000 and EUR count 2 / mean 1100 / M2 20000. The first EUR has `NO_HISTORY`; second USD prior count/mean are 1/100. Third USD prior count/mean/stddev/z-score are 2/150/70.710678.../2.121320..., scored before update. Partition/offset checks remain active per pair; offset gaps across currencies are valid.
+- Temporary Delta/Structured Streaming recovery passed: first run USD 100, EUR 1000, USD 200; restart the same newly created v2 checkpoint for USD 300 and EUR 1200. USD restored prior count 2 / mean 150, EUR prior count 1 / mean 1000, and two independent ValueStates were reported. A separate rolling v2 recovery test restored both currencies while retaining customer-wide counts. All explicit 20-/25-column schemas and sink retry assertions remain passing.
+- Processor expiry evidence: USD latest time 12:00 expires at 13:00 while EUR latest time 12:30 expires at 13:30 (one-hour test inactivity). At the USD timer only USD state clears. USD reactivation at 13:01 has `NO_HISTORY`; active EUR state remains intact and its next event uses prior EUR mean 1000.
+- Live verification used fresh isolated `/tmp/sentinel-phase10-1.qNfeRD` paths: `transactions_validated`, `transactions_deduplicated`, `transaction_customer_features_v2`, and `transaction_statistical_features_v2`. Checkpoints were `validated-checkpoint`, `dedup-checkpoint`, `rolling-v2-checkpoint`, and `statistical-v2-checkpoint`; dedicated sink IDs were `sentinel-phase10-1-validated-v1`, `sentinel-phase10-1-dedup-v1`, `sentinel-phase10-1-rolling-v2`, and `sentinel-phase10-1-statistical-v2`. No old table or checkpoint was reused, edited, deleted, or mixed with v2 rows.
+- Docker Desktop was initially stopped, then started for this authorized experiment. Existing `make infra-up` passed; Kafka retained three partitions/RF 1 and Schema Registry retained version 1 with BACKWARD_TRANSITIVE. Infrastructure configuration was unchanged. A fresh validated checkpoint was established with `STARTING_OFFSETS=latest` before publishing.
+- All five live events traversed the existing producer → registry-backed Kafka → validated Delta → deduplicated Delta → corrected rolling features → corrected statistics path. Existing deterministic seeds already supported the fixture, so no generator/producer change was needed. The customer was `customer-9428`, Kafka partition 0, offsets 18–22, with event times 2030-01-01 12:00–12:04 UTC. Each producer invocation requested and acknowledged exactly one record.
+- Seed 834 / 12:00 / USD 7171.8400: rolling count 0, sum 0.0000; statistical prior count 0, `NO_HISTORY`.
+- Seed 7350 / 12:01 / EUR 4189.8500: rolling count 1, sum 0.0000; statistical prior count 0, `NO_HISTORY`.
+- Seed 16404 / 12:02 / USD 7273.1100: rolling count 2, sum 7171.8400; statistical prior count 1, mean 7171.84, null stddev/z-score, `INSUFFICIENT_VARIANCE_HISTORY`.
+- After these three rows, the queries restarted with their same fresh checkpoints, including the new rolling/statistical v2 lineages, for the next two events. Seed 28899 / 12:03 / EUR 4214.7500: rolling count 3, sum 4189.8500; statistical prior count 1, mean 4189.85, null stddev/z-score, `INSUFFICIENT_VARIANCE_HISTORY`.
+- Seed 42049 / 12:04 / USD 7298.0100: rolling count 4, sum 14444.9500; statistical prior count 2, mean 7222.475, sample stddev 71.60870373076101, z-score 1.054829874926953, `READY`. Independent arithmetic using only the two preceding USD amounts agreed within floating-point precision. EUR amounts did not affect USD outputs.
+- Inspections observed five rows in each of the four isolated Delta tables. The first three statistical rows remained unchanged on restart. The second live statistical run reported `transformWithStateExec`, `numRowsTotal=2`, `numRowsUpdated=2`, `numRowsRemoved=0`, `memoryUsedBytes=436840`, two replaced/registered timers, and watermark 11:52 before advancing to 11:54. These are correctness diagnostics, not benchmarks; independent expiry is demonstrated by processor tests, not this five-minute live sequence.
+- `make infra-down` passed without deleting the broker volume; `docker compose ps -a` then listed no project services. With infrastructure stopped, `sbt "clean ; compile"`, forced `sbt "Test / testOnly *"`, `sbt scalafmtCheckAll`, `make verify-scala`, `make verify-python`, and `make verify` all passed. The forced run executed **79 tests across 17 suites** (all 70 previous tests plus 9 additional tests). Subsequent incremental `test` runs correctly had no changed tests to rerun. Python pytest (1 test), Ruff lint/format, and mypy passed under 3.13.9.
+- `bash -n scripts/reset-local-rolling-features.sh scripts/reset-local-statistical-features.sh` and `git diff --check` passed. Reset scripts now target only v2 defaults; no destructive reset was needed or executed.
+- ADR-020 is accepted. ADR-016/018 carry narrow monetary-semantic refinement notes, and ADR-017/019 cross-reference the revised state dimensions. Original decisions and Phase 9/10 verification evidence remain historical. Transaction Avro schema/version, Kafka key/topology, earlier queries, and Python implementation remain unchanged.
+
 ## Known Technical Debt
 
+- Phase 8 `customer_activity_snapshots` retains historical lifecycle diagnostic numeric totals without currency context. It is outside the Phase 9/10 feature pipeline and preserved here; its mixed-currency totals must not be interpreted as a monetary balance or fed into decisioning. A separate correction is needed if that diagnostic is ever used monetarily.
+- V1 Phase 9/10 monetary outputs are dimensionally invalid for mixed-currency inputs and superseded, not repaired retrospectively. Consumers must select fresh v2 feature paths; no in-place migration or retroactive recomputation is implemented.
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 - Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
 - Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8, 9, and 10 provider selections are mandatory for this API in the pinned runtime and are not evidence that RocksDB is otherwise preferable or production-tuned.
 
 ## Known Failures
 
-No current Phase 0 through Phase 10 build, test, or runtime verification failures are known. The Phase 10 Makefile argument failure was corrected and its live rerun passed.
+No current build, test, or runtime verification failures are known for the Phase 10.1 correction. Superseded v1 monetary semantics and the separate Phase 8 diagnostic limitation are documented above. The Phase 10 Makefile argument failure was corrected and its live rerun passed.
 
 ## Deferred Decisions
 
@@ -354,4 +385,4 @@ No current Phase 0 through Phase 10 build, test, or runtime verification failure
 
 ## Next Planned Capability
 
-Phase 10 prior-observed statistical amount features are implemented and verified locally and through the isolated live path. No subsequent-phase capability is implemented here.
+The Phase 10.1 currency-safe Phase 9/10 correction is fully verified locally and through the isolated live path. Deterministic risk decisioning remains deferred and was not started.

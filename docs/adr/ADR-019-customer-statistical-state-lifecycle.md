@@ -4,6 +4,8 @@
 
 Accepted
 
+[ADR-020](ADR-020-currency-safe-monetary-feature-semantics.md) scopes state, observed-offset checks, and expiry independently to each customer-currency pair under a fresh v2 lineage. The original customer-wide v1 description below is historical; timer mechanics remain unchanged.
+
 ## Context
 
 Welford statistics are constant-sized per customer but cannot be retained for inactive customers forever. Phase 10 must not alter Phase 8 or Phase 9 state/checkpoint contracts. Transport order is only directly comparable within a stable Kafka partition lineage.

@@ -23,9 +23,9 @@ final case class RollingFeatureConfig(
 object RollingFeatureConfig {
   val DefaultDeduplicatedDeltaPath: String =
     TransactionDeduplicationConfig.DefaultDeduplicatedDeltaPath
-  val DefaultFeatureDeltaPath: String = ".local/delta/transaction_customer_features"
-  val DefaultCheckpointLocation: String = ".local/checkpoints/customer-rolling-features"
-  val DefaultTxnAppId: String = "sentinel-transaction-customer-features-v1"
+  val DefaultFeatureDeltaPath: String = ".local/delta/transaction_customer_features_v2"
+  val DefaultCheckpointLocation: String = ".local/checkpoints/customer-rolling-features-v2"
+  val DefaultTxnAppId: String = "sentinel-transaction-customer-features-v2"
   val DefaultWatermarkDelay: String = "10 minutes"
   val DefaultSparkMaster: String = TransactionIngestionConfig.DefaultSparkMaster
 

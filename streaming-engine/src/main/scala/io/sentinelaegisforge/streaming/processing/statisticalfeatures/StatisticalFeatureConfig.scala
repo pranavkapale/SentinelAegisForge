@@ -25,9 +25,9 @@ final case class StatisticalFeatureConfig(
 
 object StatisticalFeatureConfig {
   val DefaultSourceDeltaPath: String = RollingFeatureConfig.DefaultFeatureDeltaPath
-  val DefaultTargetDeltaPath: String = ".local/delta/transaction_statistical_features"
-  val DefaultCheckpointLocation: String = ".local/checkpoints/customer-statistical-features"
-  val DefaultTxnAppId: String = "sentinel-transaction-statistical-features-v1"
+  val DefaultTargetDeltaPath: String = ".local/delta/transaction_statistical_features_v2"
+  val DefaultCheckpointLocation: String = ".local/checkpoints/customer-statistical-features-v2"
+  val DefaultTxnAppId: String = "sentinel-transaction-statistical-features-v2"
   val DefaultWatermarkDelay: String = RollingFeatureConfig.DefaultWatermarkDelay
   val DefaultInactivityTimeout: Duration = Duration.ofHours(24L)
   val DefaultSparkMaster: String = RollingFeatureConfig.DefaultSparkMaster

@@ -4,6 +4,8 @@
 
 Accepted
 
+Monetary membership is refined for feature semantic v2 by [ADR-020](ADR-020-currency-safe-monetary-feature-semantics.md): sums use the current currency; velocity remains customer-wide. The original v1 decision below is retained as history, not the current monetary contract.
+
 ## Context
 
 The Phase 7 deduplicated Delta table is the stable semantic input for per-transaction customer features. A current transaction must not contribute to features intended to describe its prior history. Input can arrive out of event-time order, and Spark does not guarantee a useful order for equal-time records in a customer iterator.

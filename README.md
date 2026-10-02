@@ -1,6 +1,6 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 10 adds prior-observed statistical amount features downstream of the Phase 9 rolling-feature table. It implements no fraud decisioning or model lifecycle behavior.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 10.1 corrects rolling and prior-observed statistical monetary features to use same-currency history. It implements no fraud decisioning or model lifecycle behavior.
 
 ## Modules
 
@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 10 — Prior-State Statistical Anomaly Features**. Module A consumes `transaction_customer_features` to append prior customer amount count, mean, sample standard deviation, z-score, and readiness status to `transaction_statistical_features`. The current amount is scored before it updates the baseline; no fraud threshold or decision exists. Phase 9's event-time rolling semantics and Phase 10's prior-observed statistics are distinct. Outputs are not retroactively recomputed. Spark 4.2 requires RocksDB for these `transformWithState` queries; it is not configured as a performance optimization.
+The repository is in **Phase 10.1 — Currency-Safe Monetary Feature Compatibility Correction**. Module A consumes `transaction_customer_features` to append prior customer-and-currency amount count, mean, sample standard deviation, z-score, and readiness status to `transaction_statistical_features`. Velocity remains customer-wide; ten-minute sums include only the current currency. The current amount is scored before it updates the baseline; no fraud threshold or decision exists. Phase 9's event-time rolling semantics and Phase 10's prior-observed statistics are distinct. No FX conversion occurs. Fresh v2 paths and lineages avoid mixing corrected monetary semantics with v1 outputs. Outputs are not retroactively recomputed. Spark 4.2 requires RocksDB for these `transformWithState` queries; it is not configured as a performance optimization.
 
 ## Local development
 
@@ -91,7 +91,7 @@ make process-rolling-features WATERMARK_DELAY="10 minutes"
 make inspect-rolling-features
 ```
 
-The feature query defaults to `.local/checkpoints/customer-rolling-features`, `.local/delta/transaction_customer_features`, and transaction application ID `sentinel-transaction-customer-features-v1`. The five- and ten-minute feature windows are versioned definitions, while the ten-minute default watermark is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-rolling-features` removes only these default Phase 9 paths.
+The feature query defaults to `.local/checkpoints/customer-rolling-features-v2`, `.local/delta/transaction_customer_features_v2`, and transaction application ID `sentinel-transaction-customer-features-v2`. The five- and ten-minute feature windows are versioned definitions, while the ten-minute default watermark is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-rolling-features` removes only these v2 defaults, leaving old v1 tables/checkpoints untouched. Do not resume v1 state or append v2 features to v1 paths.
 
 Run and inspect the downstream statistical feature stage:
 
@@ -102,7 +102,7 @@ make process-statistical-features \
 make inspect-statistical-features
 ```
 
-The default target is `.local/delta/transaction_statistical_features`, checkpoint `.local/checkpoints/customer-statistical-features`, and transaction application ID `sentinel-transaction-statistical-features-v1`. The inactivity timer resets statistical state after watermark-driven expiry; ten-minute watermark delay is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-statistical-features` removes only these default Phase 10 paths.
+The default target is `.local/delta/transaction_statistical_features_v2`, checkpoint `.local/checkpoints/customer-statistical-features-v2`, and transaction application ID `sentinel-transaction-statistical-features-v2`. The inactivity timer resets each customer-currency baseline independently after watermark-driven expiry; ten-minute watermark delay is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-statistical-features` removes only these v2 defaults, leaving v1 history untouched. See [ADR-020](docs/adr/ADR-020-currency-safe-monetary-feature-semantics.md) for the feature semantic version change.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

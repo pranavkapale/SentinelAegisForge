@@ -32,6 +32,7 @@ object TransactionStatisticalFeatureInspectionApp {
           "kafka_partition",
           "kafka_offset",
           "amount",
+          "currency",
           "prior_transaction_count_5m",
           "prior_amount_sum_10m",
           "prior_amount_observation_count",

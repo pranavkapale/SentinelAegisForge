@@ -146,6 +146,68 @@ final class RollingFeatureProcessorSpec extends AnyFunSuite {
     }
   }
 
+  test("velocity includes every currency while amount membership matches the current currency") {
+    val tester = newTester()
+    tester.test("a", List(input("a", "usd0", "2030-01-01T12:00:00Z", "100")))
+    val eur = tester.test("a", List(input("a", "eur1", "2030-01-01T12:01:00Z", "200", "EUR"))).head
+    assertFeatures(eur, 1L, "0.0000")
+    val usd = tester.test("a", List(input("a", "usd2", "2030-01-01T12:02:00Z", "300"))).head
+    assertFeatures(usd, 2L, "100.0000")
+    val nextEur =
+      tester.test("a", List(input("a", "eur3", "2030-01-01T12:03:00Z", "400", "EUR"))).head
+    assertFeatures(nextEur, 3L, "200.0000")
+    assert(history(tester, "a")("eur1").currency == "EUR")
+  }
+
+  test("exact inclusive monetary lower bound also requires currency equality") {
+    val tester = newTester()
+    tester.test(
+      "a",
+      List(
+        input("a", "usd0", "2030-01-01T12:00:00Z", "100"),
+        input("a", "eur0", "2030-01-01T12:00:00Z", "500", "EUR")
+      )
+    )
+    val boundary = tester.test("a", List(input("a", "usd10", "2030-01-01T12:10:00Z", "1"))).head
+    assertFeatures(boundary, 0L, "100.0000")
+  }
+
+  test("out-of-order monetary history excludes other currencies and future-event-time state") {
+    val tester = newTester()
+    tester.test("a", List(input("a", "usd0", "2030-01-01T12:00:00Z", "100")))
+    tester.test("a", List(input("a", "eur5", "2030-01-01T12:05:00Z", "200", "EUR")))
+    val atTen = tester.test("a", List(input("a", "usd10", "2030-01-01T12:10:00Z", "300"))).head
+    assertFeatures(atTen, 1L, "100.0000")
+    val late = tester.test("a", List(input("a", "usd8", "2030-01-01T12:08:00Z", "40"))).head
+    assertFeatures(late, 1L, "100.0000")
+    assertFeatures(atTen, 1L, "100.0000")
+  }
+
+  test("mixed-currency same-time peers read prior history without influencing each other") {
+    val tester = newTester()
+    tester.test(
+      "a",
+      List(
+        input("a", "usd0", "2030-01-01T12:00:00Z", "100"),
+        input("a", "eur0", "2030-01-01T12:00:00Z", "500", "EUR")
+      )
+    )
+    val peers = tester
+      .test(
+        "a",
+        List(
+          input("a", "eur1", "2030-01-01T12:01:00Z", "200", "EUR"),
+          input("a", "usd1", "2030-01-01T12:01:00Z", "300")
+        )
+      )
+      .map(row => row.currency -> row)
+      .toMap
+    assertFeatures(peers("USD"), 2L, "100.0000")
+    assertFeatures(peers("EUR"), 2L, "500.0000")
+    val laterPeer = tester.test("a", List(input("a", "usd1b", "2030-01-01T12:01:00Z", "400"))).head
+    assertFeatures(laterPeer, 2L, "100.0000")
+  }
+
   private def newTester(
       processor: RollingFeatureProcessor = new RollingFeatureProcessor
   ): TwsTester[String, RollingFeatureInput, TransactionCustomerFeatures] =
@@ -176,7 +238,8 @@ final class RollingFeatureProcessorSpec extends AnyFunSuite {
       customer: String,
       eventId: String,
       time: String,
-      amount: String
+      amount: String,
+      currency: String = "USD"
   ): RollingFeatureInput = {
     val eventTime = Timestamp.from(instant(time))
     RollingFeatureInput(
@@ -187,7 +250,7 @@ final class RollingFeatureProcessorSpec extends AnyFunSuite {
       eventTime,
       eventTime,
       new java.math.BigDecimal(amount),
-      "USD",
+      currency,
       "US",
       "device-a",
       "192.0.2.1",

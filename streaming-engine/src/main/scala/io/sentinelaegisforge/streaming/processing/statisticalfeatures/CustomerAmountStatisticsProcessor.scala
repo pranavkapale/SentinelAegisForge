@@ -18,7 +18,11 @@ import io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionCus
 
 /** Scores against prior transport-order observations, then updates one Welford value per key. */
 final class CustomerAmountStatisticsProcessor(inactivityTimeout: Duration)
-    extends StatefulProcessor[String, TransactionCustomerFeatures, TransactionStatisticalFeatures] {
+    extends StatefulProcessor[
+      CustomerCurrencyKey,
+      TransactionCustomerFeatures,
+      TransactionStatisticalFeatures
+    ] {
   import CustomerAmountStatisticsProcessor._
 
   require(!inactivityTimeout.isZero && !inactivityTimeout.isNegative)
@@ -40,7 +44,7 @@ final class CustomerAmountStatisticsProcessor(inactivityTimeout: Duration)
   }
 
   override def handleInputRows(
-      key: String,
+      key: CustomerCurrencyKey,
       inputRows: Iterator[TransactionCustomerFeatures],
       timerValues: TimerValues
   ): Iterator[TransactionStatisticalFeatures] = {
@@ -51,15 +55,18 @@ final class CustomerAmountStatisticsProcessor(inactivityTimeout: Duration)
     var current = previous
     val output = Vector.newBuilder[TransactionStatisticalFeatures]
     inputs.foreach { input =>
-      require(input.customerId == key, "group key must match customerId")
+      require(
+        input.customerId == key.customerId && input.currency == key.currency,
+        "group key must match customerId and currency"
+      )
       current.foreach { state =>
         require(
           input.kafkaPartition == state.observedKafkaPartition,
-          s"Kafka partition lineage changed for customer $key: ${state.observedKafkaPartition} -> ${input.kafkaPartition}"
+          s"Kafka partition lineage changed for customer-currency $key: ${state.observedKafkaPartition} -> ${input.kafkaPartition}"
         )
         require(
           input.kafkaOffset > state.lastObservedKafkaOffset,
-          s"Kafka offset did not advance for customer $key in partition ${input.kafkaPartition}"
+          s"Kafka offset did not advance for customer-currency $key in partition ${input.kafkaPartition}"
         )
       }
       val amount = finite(input.amount.doubleValue(), "current amount")
@@ -125,7 +132,7 @@ final class CustomerAmountStatisticsProcessor(inactivityTimeout: Duration)
   }
 
   override def handleExpiredTimer(
-      key: String,
+      key: CustomerCurrencyKey,
       timerValues: TimerValues,
       expiredTimerInfo: ExpiredTimerInfo
   ): Iterator[TransactionStatisticalFeatures] = {

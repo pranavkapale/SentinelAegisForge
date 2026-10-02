@@ -24,8 +24,12 @@ final case class RollingFeatureInput(
     kafkaTimestamp: Timestamp
 )
 
-/** Only the event-time and amount needed by the two rolling windows. */
-final case class RollingCustomerEvent(eventTimeMicros: Long, amount: java.math.BigDecimal)
+/** Currency is retained for monetary membership; velocity remains customer-wide. */
+final case class RollingCustomerEvent(
+    eventTimeMicros: Long,
+    amount: java.math.BigDecimal,
+    currency: String
+)
 
 /** One emitted row per accepted deduplicated event.
   *

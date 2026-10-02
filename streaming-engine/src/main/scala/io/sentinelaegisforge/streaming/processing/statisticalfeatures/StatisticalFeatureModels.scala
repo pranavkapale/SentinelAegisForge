@@ -2,7 +2,10 @@ package io.sentinelaegisforge.streaming.processing.statisticalfeatures
 
 import io.sentinelaegisforge.streaming.processing.rollingfeatures.TransactionCustomerFeatures
 
-/** Constant-sized, customer-keyed Welford state for the current inactivity lifecycle. */
+/** Raw amounts may only share a statistical baseline when both dimensions match. */
+final case class CustomerCurrencyKey(customerId: String, currency: String)
+
+/** Constant-sized Welford state per customer-currency inactivity lifecycle. */
 final case class CustomerAmountStatistics(
     count: Long,
     mean: Double,

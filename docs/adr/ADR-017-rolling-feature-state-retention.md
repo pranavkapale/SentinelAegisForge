@@ -4,6 +4,8 @@
 
 Accepted
 
+[ADR-020](ADR-020-currency-safe-monetary-feature-semantics.md) adds currency to retained events under a fresh v2 lineage. The original v1 state description below is historical; retention and timer behavior are unchanged.
+
 ## Context
 
 Rolling features need event-level history within their maximum useful horizon. Phase 8's constant-sized lifecycle value cannot provide these lookups without changing its existing state contract. Retained history and timer counts need explicit bounds.

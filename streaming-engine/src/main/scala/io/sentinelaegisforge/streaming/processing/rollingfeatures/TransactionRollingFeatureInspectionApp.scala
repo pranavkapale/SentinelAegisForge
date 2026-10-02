@@ -30,6 +30,7 @@ object TransactionRollingFeatureInspectionApp {
           "customer_id",
           "event_time",
           "amount",
+          "currency",
           "prior_transaction_count_5m",
           "prior_amount_sum_10m"
         )

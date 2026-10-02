@@ -51,9 +51,9 @@ final class RollingFeatureStreamingSpec extends AnyFunSuite with BeforeAndAfterA
   test("configuration keeps a separate state and Delta lineage") {
     val config = TransactionRollingFeatureApp.parseArguments(Array.empty).fold(fail(_), identity)
     assert(config.deduplicatedDeltaPath == RollingFeatureConfig.DefaultDeduplicatedDeltaPath)
-    assert(config.featureDeltaPath == ".local/delta/transaction_customer_features")
-    assert(config.checkpointLocation == ".local/checkpoints/customer-rolling-features")
-    assert(config.deltaTxnAppId == "sentinel-transaction-customer-features-v1")
+    assert(config.featureDeltaPath == ".local/delta/transaction_customer_features_v2")
+    assert(config.checkpointLocation == ".local/checkpoints/customer-rolling-features-v2")
+    assert(config.deltaTxnAppId == "sentinel-transaction-customer-features-v2")
     assert(config.watermarkDelay == "10 minutes")
     assert(RollingFeatureConfig.RequiredStateStoreProvider.endsWith("RocksDBStateStoreProvider"))
   }
@@ -63,7 +63,7 @@ final class RollingFeatureStreamingSpec extends AnyFunSuite with BeforeAndAfterA
     val source = root.resolve("transactions_deduplicated").toString
     val target = root.resolve("transaction_customer_features").toString
     val checkpoint = root.resolve("checkpoint").toString
-    val appId = "sentinel-test-rolling-features-v1"
+    val appId = "sentinel-test-rolling-features-v2"
 
     appendSource(
       source,
@@ -103,6 +103,36 @@ final class RollingFeatureStreamingSpec extends AnyFunSuite with BeforeAndAfterA
     assert(cleanupProgress.exists(_.stateOperators.exists(_.numRowsRemoved > 0L)))
     assert(cleanupProgress.exists(_.stateOperators.exists(_.memoryUsedBytes > 0L)))
     assertFeature(row(target, "c30"), 0L, "0.0000")
+  }
+
+  test("mixed-currency rolling state recovers without splitting customer velocity") {
+    val root = Files.createTempDirectory("sentinel-rolling-currency-v2")
+    val source = root.resolve("source").toString
+    val target = root.resolve("features-v2").toString
+    val checkpoint = root.resolve("rolling-v2-checkpoint").toString
+    val appId = "sentinel-test-rolling-currency-v2"
+    appendSource(
+      source,
+      Seq(
+        record("usd0", "a", "2030-01-01T12:00:00Z", "100"),
+        record("eur1", "a", "2030-01-01T12:01:00Z", "200", "EUR")
+      )
+    )
+    runQuery(source, target, checkpoint, appId)
+    assertFeature(row(target, "eur1"), 1L, "0.0000")
+    appendSource(
+      source,
+      Seq(
+        record("usd2", "a", "2030-01-01T12:02:00Z", "300"),
+        record("eur3", "a", "2030-01-01T12:03:00Z", "400", "EUR")
+      )
+    )
+    runQuery(source, target, checkpoint, appId)
+    assertFeature(row(target, "usd2"), 2L, "100.0000")
+    assertFeature(row(target, "eur3"), 3L, "200.0000")
+    assertFeature(row(target, "eur1"), 1L, "0.0000")
+    assert(spark.read.format("delta").load(target).count() == 4L)
+    assert(spark.read.format("delta").load(source).count() == 4L)
   }
 
   test("feature Delta sink uses its own transaction ID and decimal(38,4) output") {
@@ -212,7 +242,8 @@ final class RollingFeatureStreamingSpec extends AnyFunSuite with BeforeAndAfterA
       id: String,
       customer: String,
       time: String,
-      amount: String
+      amount: String,
+      currency: String = "USD"
   ): ValidatedTransactionRecord = {
     val eventTime = timestamp(time)
     ValidatedTransactionRecord(
@@ -223,7 +254,7 @@ final class RollingFeatureStreamingSpec extends AnyFunSuite with BeforeAndAfterA
       eventTime,
       Timestamp.from(eventTime.toInstant.plusSeconds(1L)),
       new java.math.BigDecimal(amount),
-      "USD",
+      currency,
       "US",
       "device",
       "192.0.2.1",

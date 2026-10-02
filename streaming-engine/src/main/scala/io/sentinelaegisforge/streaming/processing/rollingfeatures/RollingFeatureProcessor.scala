@@ -57,19 +57,20 @@ final class RollingFeatureProcessor
             item.eventTimeMicros >= countLower && item.eventTimeMicros < currentMicros
           )
           .foldLeft(0L)((count, _) => Math.addExact(count, 1L))
-        val priorAmount = history.iterator
-          .filter(item =>
-            item.eventTimeMicros >= amountLower && item.eventTimeMicros < currentMicros
-          )
-          .foldLeft(ZeroAmount)((sum, item) => checkedSum(sum.add(item.amount)))
-
-        peers.foreach(input =>
+        // All same-time peers read the same prior history before any peer enters state.
+        peers.foreach { input =>
+          val priorAmount = history.iterator
+            .filter(item =>
+              item.eventTimeMicros >= amountLower && item.eventTimeMicros < currentMicros &&
+                item.currency == input.currency
+            )
+            .foldLeft(ZeroAmount)((sum, item) => checkedSum(sum.add(item.amount)))
           output += TransactionCustomerFeatures.from(input, priorCount, priorAmount)
-        )
+        }
         peers.foreach { input =>
           rollingEvents.updateValue(
             input.eventId,
-            RollingCustomerEvent(currentMicros, input.amount)
+            RollingCustomerEvent(currentMicros, input.amount, input.currency)
           )
         }
     }
