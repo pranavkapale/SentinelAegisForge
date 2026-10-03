@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 10.1 — Currency-Safe Monetary Feature Compatibility Correction
+Phase 11 — Deterministic Explainable Risk Decision Engine
 
-The Phase 0–10 foundations are preserved. This verified correctness correction refines Phase 9 and Phase 10 monetary feature semantics before decisioning: velocity stays customer-wide, rolling amount sums use the current currency, and prior-observed Welford statistics use customer+currency state. Fresh feature semantic v2 checkpoints, output paths, and Delta transaction IDs supersede v1 monetary semantics without modifying historical rows or state. No risk engine is implemented.
+Phases 0–10.1 remain preserved and verified. The stateless decision layer consumes only corrected `transaction_statistical_features_v2`, evaluates three explicit deterministic rules and durably appends advisory CLEAR/REVIEW decisions with ordered explanations and exact policy identity. Mixed-currency full-path evidence and Docker-independent regression verification passed. No ML, calibrated production policy or enforcement is implemented.
 
 ## Implemented Capabilities
 
@@ -79,18 +79,25 @@ The Phase 0–10 foundations are preserved. This verified correctness correction
 - Currency-safe feature semantic v2 with dedicated `customer-rolling-features-v2` / `customer-statistical-features-v2` checkpoints and `sentinel-transaction-customer-features-v2` / `sentinel-transaction-statistical-features-v2` transaction application IDs; reset interfaces affect only v2 defaults.
 - Nine additional mixed-currency tests covering rolling membership, unchanged temporal bounds/peers, per-currency Welford baselines, independent expiry/reactivation, and temporary Delta checkpoint recovery.
 
-No DLQ, late-event side output, merchant/device cardinality state, fraud decisioning, model lifecycle, or other later-phase runtime capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, and the customer state queries are distinct boundaries; none is an unconditional exactly-once business-processing claim.
+- Pure deterministic R001 customer-wide velocity, R002 positive READY amount z-score and R003 combined rules, returning only advisory CLEAR/REVIEW with all overlapping matches in canonical order.
+- Explicit immutable policy with required valid thresholds, human semantic version and SHA-256 fingerprint over exact canonical rule/configuration identity; no hidden policy defaults.
+- Typed invalid-feature errors and fail-fast Spark mapping for impossible readiness, missing counts/status, negative counts/stddev and nonfinite statistics.
+- Stateless AvailableNow Delta query from the corrected 25-column statistical boundary to unpartitioned 31-column `transaction_risk_decisions`, preserving every original field and adding native rule/reason arrays and policy identity.
+- Dedicated risk checkpoint and Delta sink transaction identity with same-checkpoint resume and same-app/batch retry evidence.
+- Nineteen new pure/configuration and temporary Spark/Delta tests, plus a real five-event mixed-currency full-path run demonstrating CLEAR and REVIEW without additional monetary aggregation.
+
+No DLQ, late-event side output, merchant/device cardinality state, numeric composite risk score, ML, model lifecycle or enforcement capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, customer feature state and deterministic advisory decisions are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
 ## Current Architecture
 
-- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, a customer-keyed activity-state lifecycle, a prior-only rolling-feature query, and a downstream prior-observed statistical-feature query. It has no fraud-processing runtime.
+- `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, a customer-keyed activity-state lifecycle, a prior-only rolling-feature query, a downstream prior-observed statistical-feature query and a stateless deterministic advisory risk layer. No ML or payment enforcement exists.
 - `model-control-plane`: Python package and temporary foundation import test only.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the corrected Phase 9 v2 rolling-feature table. Behavioral velocity uses the customer dimension; raw monetary features use customer+currency. Kafka stays keyed by customer; currency switching leaves routing unchanged. The existing `currency` column denominates sums, means, and standard deviations. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the corrected Phase 9 v2 rolling-feature table. Behavioral velocity uses the customer dimension; raw monetary features use customer+currency. Kafka stays keyed by customer; currency switching leaves routing unchanged. The existing `currency` column denominates sums, means, and standard deviations. Phase 11 reads only `transaction_statistical_features_v2` and appends decisions to `transaction_risk_decisions`, with no stateful operator, watermark, RocksDB configuration or feature mutation. Phase 8 diagnostic amounts remain excluded. The two runtime modules have no integration with each other.
 
 ## Runtime Baseline
 
@@ -119,6 +126,8 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-018: Customer statistical feature semantics](docs/adr/ADR-018-customer-statistical-feature-semantics.md)
 - [ADR-019: Customer statistical state lifecycle](docs/adr/ADR-019-customer-statistical-state-lifecycle.md)
 - [ADR-020: Currency-safe monetary feature semantics](docs/adr/ADR-020-currency-safe-monetary-feature-semantics.md)
+- [ADR-021: Deterministic risk policy](docs/adr/ADR-021-deterministic-risk-policy.md)
+- [ADR-022: Risk policy identity and evolution](docs/adr/ADR-022-risk-policy-versioning.md)
 
 ## Verification Status
 
@@ -350,6 +359,59 @@ Historical v1 evidence below is preserved. Its customer-wide mixed-currency stat
 - `bash -n scripts/reset-local-rolling-features.sh scripts/reset-local-statistical-features.sh` and `git diff --check` passed. Reset scripts now target only v2 defaults; no destructive reset was needed or executed.
 - ADR-020 is accepted. ADR-016/018 carry narrow monetary-semantic refinement notes, and ADR-017/019 cross-reference the revised state dimensions. Original decisions and Phase 9/10 verification evidence remain historical. Transaction Avro schema/version, Kafka key/topology, earlier queries, and Python implementation remain unchanged.
 
+### Phase 11 deterministic explainable risk verification
+
+- Pre-change worktree was clean `main`, tracking `origin/main`, with Phase 10.1 committed (`4304a39`) and 79 tests across 17 suites. The 25-column statistical schema, v2 monetary semantics, earlier checkpoints, infrastructure and dependency baseline were preserved. Zero direct dependencies were added. The session explicitly selected Temurin JDK 21.0.12.1; Spark ran 4.2.0 with existing Delta 4.4.0. Python verification used 3.13.9.
+- `sbt "scalafmtAll ; compile ; Test / testOnly *Risk*"` passed 19 new tests across two suites. Pure tests cover CLEAR, each inclusive rule threshold, isolated/overlapping R003, all-rules canonical ordering, readiness gating, negative z-score, deterministic evaluation, fixed fingerprint identity, sensitivity to all four thresholds and human version, invalid policies, invalid feature contexts and required CLI configuration. Invalid feature tests intentionally provoke explicit Spark task failures and assert them; they are not unresolved application failures.
+- Temporary Delta tests demonstrate one decision per source row, native string arrays, policy identity, exact preservation of all 25 source fields (including a large `decimal(38,4)` sum), CLEAR/REVIEW, no physical partition columns, zero state operators, same-checkpoint no-input resume, subsequent new input, and independent sink retry suppression. Writing an identical risk batch twice with the same application ID/version leaves one row and one Delta commit. No RocksDB is configured for this query.
+- Docker Desktop was initially unavailable, then opened manually by the user. Existing `make infra-up` passed with Docker Engine 29.7.2 / Docker Desktop 4.89.0. Kafka retained three partitions/RF 1 and the registry subject retained version 1 / BACKWARD_TRANSITIVE. No infrastructure configuration changed.
+- Live verification used fresh isolated `/tmp/sentinel-phase11.79hNIz` tables and checkpoints. Dedicated transaction IDs: `sentinel-phase11-validated-v1`, `sentinel-phase11-deduplicated-v1`, `sentinel-phase11-rolling-v2`, `sentinel-phase11-statistics-v2`, `sentinel-phase11-risk-decisions-v1`. A new validated checkpoint was initialized with `STARTING_OFFSETS=latest` before publishing. Old Phase 6–10.1 data and state were not edited, deleted or reused.
+- All five records traversed the existing deterministic producer → registry-backed Kafka → validated Delta → deduplicated Delta → corrected rolling v2 → statistical v2 → risk engine. Each producer requested/acknowledged one event with zero failures. The customer was `customer-9428`, Kafka partition 0, offsets 23–27, event times 2030-01-01 12:00–12:04 UTC.
+- Explicit **non-production engineering verification** policy: `phase11-verification-v1`, high velocity 3, high positive z-score 2.0, combined velocity 3, combined positive z-score 1.0. Persisted fingerprint: `594b7caf5f937e6098c4fb0ca3ea692759600c40461a26954a3e1012e2b9635e`. The effective canonical representation was printed on both runs and is specified in ADR-022; version and all thresholds participate. This policy is not fraud-calibrated and the fingerprint is not a security signature.
+- Seed 834 / 12:00 / USD 7171.8400: velocity 0, z-score null / `NO_HISTORY`, matched IDs/reasons empty, `CLEAR`.
+- Seed 7350 / 12:01 / EUR 4189.8500: velocity 1, z-score null / `NO_HISTORY`, empty matches, `CLEAR`.
+- Seed 16404 / 12:02 / USD 7273.1100: velocity 2, z-score null / `INSUFFICIENT_VARIANCE_HISTORY`, empty matches, `CLEAR`.
+- Seed 28899 / 12:03 / EUR 4214.7500: velocity 3, z-score null / `INSUFFICIENT_VARIANCE_HISTORY`, `R001_HIGH_TRANSACTION_VELOCITY_5M` / `HIGH_TRANSACTION_VELOCITY_5M`, `REVIEW`.
+- Seed 42049 / 12:04 / USD 7298.0100: velocity 4, z-score `1.054829874926953` / `READY`, ordered R001 then `R003_VELOCITY_AND_AMOUNT_ANOMALY`, aligned velocity/combined reason codes, `REVIEW`. USD prior count/mean/stddev were 2 / 7222.475 / 71.60870373076101; EUR observations did not influence this baseline. R002's 2.0 threshold was not reached live; its individual match is covered by pure tests. Rolling USD sum 14444.9500 remains evidence only, never thresholded.
+- First risk query reported batch 0 / five inputs / zero state operators. Inspection observed five 31-column rows: three CLEAR, two REVIEW. Same-policy/checkpoint rerun reported batch 1 / zero inputs / zero state operators; second inspection still observed five rows and the same fingerprint. No decision-time timestamp or randomness is added.
+- `make infra-down` preserved broker data; `docker compose ps -a` listed no project containers. With infrastructure stopped, `sbt "clean ; compile"`, forced `sbt "Test / testOnly *"`, `sbt scalafmtCheckAll`, `make verify-scala`, `make verify-python`, `make verify` and `git diff --check` passed. The forced run executed **98 tests across 19 suites**, including all previous 79 tests unchanged and 19 new tests. Subsequent incremental `test` tasks correctly ran zero unchanged tests. Python pytest (1 test), Ruff lint/format and mypy passed. Final documentation changes were followed by another whitespace check.
+- Decisions are append-only advisory evaluations. Same-app/batch sink retries and source checkpoint progress do not guarantee lifetime event+policy uniqueness; fresh-checkpoint replay can append another evaluation. No MERGE, historical re-evaluation, ML, numeric risk score, enforcement side effect, FX conversion, new stateful processor, Phase 11 RocksDB or benchmark is introduced. Prior Phase 9/10 histories above are retained unchanged.
+
+#### Executed live commands
+
+The existing infrastructure was started, then an isolated directory was allocated (returned `/tmp/sentinel-phase11.79hNIz`). Session-only runtime/path/policy exports applied to the subsequent pipeline commands; no global runtime was changed:
+
+```sh
+make infra-up
+mktemp -d /tmp/sentinel-phase11.XXXXXX
+export JAVA_HOME=/Users/pranavkapale/.sdkman/candidates/java/21.0.12+1.1-tem
+export PATH="$JAVA_HOME/bin:/Users/pranavkapale/.sdkman/candidates/sbt/current/bin:$PATH"
+export DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transactions_validated DELTA_CHECKPOINT_DIR=/tmp/sentinel-phase11.79hNIz/validated-checkpoint DELTA_TXN_APP_ID=sentinel-phase11-validated-v1
+export DEDUPLICATED_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transactions_deduplicated DEDUP_CHECKPOINT_DIR=/tmp/sentinel-phase11.79hNIz/dedup-checkpoint DEDUP_DELTA_TXN_APP_ID=sentinel-phase11-deduplicated-v1
+export FEATURE_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_customer_features_v2 FEATURE_CHECKPOINT_DIR=/tmp/sentinel-phase11.79hNIz/rolling-checkpoint-v2 FEATURE_DELTA_TXN_APP_ID=sentinel-phase11-rolling-v2
+export STATISTICAL_FEATURE_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2 STATISTICAL_FEATURE_CHECKPOINT_DIR=/tmp/sentinel-phase11.79hNIz/statistical-checkpoint-v2 STATISTICAL_FEATURE_DELTA_TXN_APP_ID=sentinel-phase11-statistics-v2
+export RISK_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_risk_decisions RISK_CHECKPOINT_DIR=/tmp/sentinel-phase11.79hNIz/risk-checkpoint-v1 RISK_DELTA_TXN_APP_ID=sentinel-phase11-risk-decisions-v1
+export POLICY_VERSION=phase11-verification-v1 HIGH_VELOCITY_THRESHOLD_5M=3 HIGH_AMOUNT_ZSCORE_THRESHOLD=2.0 COMBINED_VELOCITY_THRESHOLD_5M=3 COMBINED_AMOUNT_ZSCORE_THRESHOLD=1.0
+make ingest-delta STARTING_OFFSETS=latest
+make produce-sample COUNT=1 SEED=834 BASE_TIME=2030-01-01T12:00:00Z
+make produce-sample COUNT=1 SEED=7350 BASE_TIME=2030-01-01T12:01:00Z
+make produce-sample COUNT=1 SEED=16404 BASE_TIME=2030-01-01T12:02:00Z
+make produce-sample COUNT=1 SEED=28899 BASE_TIME=2030-01-01T12:03:00Z
+make produce-sample COUNT=1 SEED=42049 BASE_TIME=2030-01-01T12:04:00Z
+make ingest-delta STARTING_OFFSETS=latest
+make deduplicate-transactions
+make process-rolling-features
+make process-statistical-features
+make process-risk-decisions
+make inspect-risk-decisions
+make process-risk-decisions
+make inspect-risk-decisions
+make infra-down
+docker compose ps -a
+```
+
+The risk default checkpoint/application ID is distinct from every earlier query. Future policy changes require explicit policy-version/fingerprint and checkpoint/output/application-ID review (ADR-022).
+
 ## Known Technical Debt
 
 - Phase 8 `customer_activity_snapshots` retains historical lifecycle diagnostic numeric totals without currency context. It is outside the Phase 9/10 feature pipeline and preserved here; its mixed-currency totals must not be interpreted as a monetary balance or fed into decisioning. A separate correction is needed if that diagnostic is ever used monetarily.
@@ -357,10 +419,11 @@ Historical v1 evidence below is preserved. Its customer-wide mixed-currency stat
 - The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
 - Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
 - Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8, 9, and 10 provider selections are mandatory for this API in the pinned runtime and are not evidence that RocksDB is otherwise preferable or production-tuned.
+- Risk policy thresholds are explicit engineering verification settings, not calibrated production policy. Same-policy replay under a fresh checkpoint has no lifetime decision uniqueness guard; replay/lineage governance remains required.
 
 ## Known Failures
 
-No current build, test, or runtime verification failures are known for the Phase 10.1 correction. Superseded v1 monetary semantics and the separate Phase 8 diagnostic limitation are documented above. The Phase 10 Makefile argument failure was corrected and its live rerun passed.
+No current build, test or runtime verification failures are known for Phase 11. The temporary Docker prerequisite blocker was resolved before live verification. Superseded v1 monetary semantics, the separate Phase 8 diagnostic limitation and the corrected historical Phase 10 Makefile failure remain documented above.
 
 ## Deferred Decisions
 
@@ -378,11 +441,14 @@ No current build, test, or runtime verification failures are known for the Phase
 - Customer state-schema migration and initial-state bootstrapping.
 - Offline/backfill feature recomputation and retroactive correction of online feature rows after late arrivals.
 - Further rolling windows, unique merchant/device state, Welford rolling windows, and retrospective statistical recomputation.
-- Fraud rules, anomaly decision thresholds, composite risk scores, and risk decisioning.
+- Production rule/threshold calibration, numeric risk scoring and fraud labels; current rules demonstrate engineering semantics only.
+- Historical policy re-evaluation and decision MERGE/idempotency across fresh checkpoints.
+- Payment blocking/enforcement, review workflow and policy promotion/governance services.
+- ML training, MLflow, model serving and shadow/canary evaluation.
 - Customer Kafka partition-remapping migration and Phase 10 checkpoint/state compatibility strategy.
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-The Phase 10.1 currency-safe Phase 9/10 correction is fully verified locally and through the isolated live path. Deterministic risk decisioning remains deferred and was not started.
+Phase 11 is fully implemented and verified locally and through the isolated mixed-currency full path. Work stops at deterministic advisory decisions; no subsequent phase, ML, policy replay or enforcement has been started.

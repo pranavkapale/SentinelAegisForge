@@ -24,6 +24,15 @@ STATISTICAL_FEATURE_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_statistical
 STATISTICAL_FEATURE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-statistical-features-v2
 STATISTICAL_FEATURE_DELTA_TXN_APP_ID ?= sentinel-transaction-statistical-features-v2
 STATISTICAL_FEATURE_INACTIVITY ?= 24 hours
+RISK_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_risk_decisions
+RISK_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/risk-decisions-v1
+RISK_DELTA_TXN_APP_ID ?= sentinel-transaction-risk-decisions-v1
+# No hidden policy defaults: supply all five parameters explicitly.
+POLICY_VERSION ?=
+HIGH_VELOCITY_THRESHOLD_5M ?=
+HIGH_AMOUNT_ZSCORE_THRESHOLD ?=
+COMBINED_VELOCITY_THRESHOLD_5M ?=
+COMBINED_AMOUNT_ZSCORE_THRESHOLD ?=
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -117,3 +126,11 @@ inspect-statistical-features:
 reset-statistical-features:
 	@echo "Removing the default local statistical-feature table and its coupled checkpoint."
 	bash scripts/reset-local-statistical-features.sh
+
+.PHONY: process-risk-decisions inspect-risk-decisions
+process-risk-decisions:
+	@test -n "$(POLICY_VERSION)" && test -n "$(HIGH_VELOCITY_THRESHOLD_5M)" && test -n "$(HIGH_AMOUNT_ZSCORE_THRESHOLD)" && test -n "$(COMBINED_VELOCITY_THRESHOLD_5M)" && test -n "$(COMBINED_AMOUNT_ZSCORE_THRESHOLD)" || { echo "Supply POLICY_VERSION and all four explicit risk thresholds (see deterministic-risk-engine.md)."; exit 1; }
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.risk.TransactionRiskDecisionApp --source-delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --target-delta-path=$(RISK_DELTA_PATH) --checkpoint-location=$(RISK_CHECKPOINT_DIR) --delta-txn-app-id=$(RISK_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER) --policy-version=$(POLICY_VERSION) --high-velocity-threshold-5m=$(HIGH_VELOCITY_THRESHOLD_5M) --high-amount-zscore-threshold=$(HIGH_AMOUNT_ZSCORE_THRESHOLD) --combined-velocity-threshold-5m=$(COMBINED_VELOCITY_THRESHOLD_5M) --combined-amount-zscore-threshold=$(COMBINED_AMOUNT_ZSCORE_THRESHOLD)"
+
+inspect-risk-decisions:
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.risk.TransactionRiskDecisionInspectionApp --delta-path=$(RISK_DELTA_PATH) --spark-master=$(SPARK_MASTER)"

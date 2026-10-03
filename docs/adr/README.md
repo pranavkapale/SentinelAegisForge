@@ -54,3 +54,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-018: Customer statistical feature semantics](ADR-018-customer-statistical-feature-semantics.md)
 - [ADR-019: Customer statistical state lifecycle](ADR-019-customer-statistical-state-lifecycle.md)
 - [ADR-020: Currency-safe monetary feature semantics](ADR-020-currency-safe-monetary-feature-semantics.md)
+- [ADR-021: Deterministic risk policy](ADR-021-deterministic-risk-policy.md)
+- [ADR-022: Risk policy identity and evolution](ADR-022-risk-policy-versioning.md)

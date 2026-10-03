@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 10.1 corrects rolling and prior-observed statistical monetary features to use same-currency history. It implements no fraud decisioning or model lifecycle behavior.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. Phase 11 adds versioned deterministic advisory risk decisions with explicit rule IDs and reason codes over corrected currency-safe features. No ML or enforcement behavior is implemented.
 
 ## Modules
 
-- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, and rolling and statistical feature queries. Fraud/risk decisioning remains future work.
+- **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
 - **Module B — `model-control-plane`:** an independently buildable Python module reserved for future drift monitoring, delayed-label evaluation, retraining, model governance, and promotion or rollback.
 
 ## Current status
 
-The repository is in **Phase 10.1 — Currency-Safe Monetary Feature Compatibility Correction**. Module A consumes `transaction_customer_features` to append prior customer-and-currency amount count, mean, sample standard deviation, z-score, and readiness status to `transaction_statistical_features`. Velocity remains customer-wide; ten-minute sums include only the current currency. The current amount is scored before it updates the baseline; no fraud threshold or decision exists. Phase 9's event-time rolling semantics and Phase 10's prior-observed statistics are distinct. No FX conversion occurs. Fresh v2 paths and lineages avoid mixing corrected monetary semantics with v1 outputs. Outputs are not retroactively recomputed. Spark 4.2 requires RocksDB for these `transformWithState` queries; it is not configured as a performance optimization.
+The repository is in **Phase 11 — Deterministic Explainable Risk Decision Engine**. Stateless rules consume only `transaction_statistical_features_v2` and preserve its evidence in `transaction_risk_decisions`. Velocity stays customer-wide; amount statistics remain currency-specific. Explicit policy thresholds and a SHA-256 configuration fingerprint make decisions reproducible, not production-calibrated fraud judgments. CLEAR/REVIEW do not approve or block payments. Earlier rolling/statistical state remains unchanged; no FX conversion or retroactive recomputation occurs. Spark 4.2 requires RocksDB for earlier `transformWithState` queries, not for this stateless decision stage.
 
 ## Local development
 
@@ -103,6 +103,18 @@ make inspect-statistical-features
 ```
 
 The default target is `.local/delta/transaction_statistical_features_v2`, checkpoint `.local/checkpoints/customer-statistical-features-v2`, and transaction application ID `sentinel-transaction-statistical-features-v2`. The inactivity timer resets each customer-currency baseline independently after watermark-driven expiry; ten-minute watermark delay is a local development policy. A new state/checkpoint lineage requires a new transaction application ID. `make reset-statistical-features` removes only these v2 defaults, leaving v1 history untouched. See [ADR-020](docs/adr/ADR-020-currency-safe-monetary-feature-semantics.md) for the feature semantic version change.
+
+Run the stateless risk stage with an explicit **non-production verification policy**:
+
+```sh
+make process-risk-decisions \
+  POLICY_VERSION=phase11-verification-v1 \
+  HIGH_VELOCITY_THRESHOLD_5M=3 HIGH_AMOUNT_ZSCORE_THRESHOLD=2.0 \
+  COMBINED_VELOCITY_THRESHOLD_5M=3 COMBINED_AMOUNT_ZSCORE_THRESHOLD=1.0
+make inspect-risk-decisions
+```
+
+No policy defaults exist. Policy changes need explicit version/fingerprint and checkpoint/output-lineage review. See the [deterministic risk engine](docs/architecture/deterministic-risk-engine.md) for configuration, explainability and retry boundaries.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
