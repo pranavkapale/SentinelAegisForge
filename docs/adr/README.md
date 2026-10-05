@@ -56,3 +56,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-020: Currency-safe monetary feature semantics](ADR-020-currency-safe-monetary-feature-semantics.md)
 - [ADR-021: Deterministic risk policy](ADR-021-deterministic-risk-policy.md)
 - [ADR-022: Risk policy identity and evolution](ADR-022-risk-policy-versioning.md)
+- [ADR-023: Independent delayed outcome labels](ADR-023-delayed-fraud-label-contract.md)
+- [ADR-024: Immutable offline dataset snapshots](ADR-024-offline-ml-dataset-snapshots.md)

@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-Phase 11 — Deterministic Explainable Risk Decision Engine
+Phase 12 — Offline ML Dataset Contract & Delayed Labels
 
-Phases 0–10.1 remain preserved and verified. The stateless decision layer consumes only corrected `transaction_statistical_features_v2`, evaluates three explicit deterministic rules and durably appends advisory CLEAR/REVIEW decisions with ordered explanations and exact policy identity. Mixed-currency full-path evidence and Docker-independent regression verification passed. No ML, calibrated production policy or enforcement is implemented.
+Phases 0–11 remain preserved and verified. Module B now reads a fixed version of corrected `transaction_statistical_features_v2` through Delta → Arrow, resolves independent delayed FRAUD/LEGIT labels at an explicit AS_OF_TIME, and builds immutable, reproducible offline snapshots with manifests and fingerprints. The actual Scala/Python Delta compatibility gate, five-event T1/T2 experiment and Docker-independent repository regression checks passed. No model, training, calibrated production policy or enforcement is implemented.
 
 ## Implemented Capabilities
 
@@ -86,23 +86,33 @@ Phases 0–10.1 remain preserved and verified. The stateless decision layer cons
 - Dedicated risk checkpoint and Delta sink transaction identity with same-checkpoint resume and same-app/batch retry evidence.
 - Nineteen new pure/configuration and temporary Spark/Delta tests, plus a real five-event mixed-currency full-path run demonstrating CLEAR and REVIEW without additional monetary aggregation.
 
-No DLQ, late-event side output, merchant/device cardinality state, numeric composite risk score, ML, model lifecycle or enforcement capability is implemented. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, customer feature state and deterministic advisory decisions are distinct boundaries; none is an unconditional exactly-once business-processing claim.
+- Pinned Python Delta/Arrow reader that captures source table ID, version, protocol, complete 25-column schema and deterministic schema fingerprint.
+- Strict source schema/statistical consistency checks and whole-version unique event-ID validation; ambiguous replay rows fail rather than being silently deduplicated.
+- Independent typed FRAUD/LEGIT JSONL label histories with UTC observation times, explicit provenance, unique contiguous revisions and causal validation.
+- Explicit AS_OF_TIME ingestion filtering and latest-eligible-revision resolution with strict one-to-one joins; unlabeled rows are excluded/countable, never negative examples, and unmatched eligible labels fail.
+- Immutable 29-column `transaction-fraud-v1` Parquet snapshots, ordered by event time/event ID, preserving all source fields, exact monetary decimals and selected label provenance.
+- Deterministic SHA-256 snapshot identity, raw label-byte hash, source-schema fingerprint, ordered logical dataset fingerprint and Parquet integrity hash; existing snapshots are verified, not overwritten.
+- Declared 11-column candidate feature allowlist separated from identity, Kafka lineage, label metadata and deferred high-cardinality identifiers. Risk decisions are neither dataset inputs nor ground-truth labels.
+- Local build/inspect CLI and narrow Makefile targets consuming already materialized features without starting Scala or infrastructure.
+- Fifty-six substantive Docker-independent Python tests superseding the temporary package-import smoke test, plus live T1/T2 label-revision and unchanged-T1 evidence from the real Phase 11 corrected feature lineage.
+
+No DLQ, late-event side output, merchant/device cardinality state, numeric composite risk score, model training, model lifecycle or enforcement capability is implemented. Offline dataset preparation is not a trained fraud detector. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, customer feature state and deterministic advisory decisions are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
 ## Current Architecture
 
 - `streaming-engine`: Scala/JVM transaction domain contract, validator, deterministic simulator, Apache Avro mapping/local codec, bounded registry-backed Kafka producer, Spark Structured Streaming consumer, a validated-record Delta audit sink, a separate event-time/watermark-bounded event-ID deduplication sink, a customer-keyed activity-state lifecycle, a prior-only rolling-feature query, a downstream prior-observed statistical-feature query and a stateless deterministic advisory risk layer. No ML or payment enforcement exists.
-- `model-control-plane`: Python package and temporary foundation import test only.
+- `model-control-plane`: Python Delta → Arrow reader, independent delayed-label contract/resolver, strict point-in-time labeled dataset builder, manifest/fingerprint verification and local snapshot CLI. No PySpark or model-training runtime exists.
 - Local infrastructure: one configured Apache Kafka 4.3.1 combined KRaft broker/controller, one explicitly provisioned application topic (`transactions.raw`), and Schema Registry 8.3.2 with one governed value subject (`transactions.raw-value`).
 - Shared contracts: one canonical Avro schema at `contracts/events/transaction-event-v1.avsc`.
 - `docs`: shared architecture overview and accepted ADRs.
 - Repository root: shared verification, infrastructure lifecycle commands, hygiene, CI, and project-state metadata.
 
-The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the corrected Phase 9 v2 rolling-feature table. Behavioral velocity uses the customer dimension; raw monetary features use customer+currency. Kafka stays keyed by customer; currency switching leaves routing unchanged. The existing `currency` column denominates sums, means, and standard deviations. Phase 11 reads only `transaction_statistical_features_v2` and appends decisions to `transaction_risk_decisions`, with no stateful operator, watermark, RocksDB configuration or feature mutation. Phase 8 diagnostic amounts remain excluded. The two runtime modules have no integration with each other.
+The streaming module can publish bounded validated samples to local Kafka, consume them through Spark, persist every validated record plus transport metadata, derive a durable watermark-bounded deduplicated table, and run independent customer activity and rolling-feature queries over that semantic source. The Phase 10 statistical query consumes the corrected Phase 9 v2 rolling-feature table. Behavioral velocity uses the customer dimension; raw monetary features use customer+currency. Kafka stays keyed by customer; currency switching leaves routing unchanged. The existing `currency` column denominates sums, means, and standard deviations. Phase 11 reads only `transaction_statistical_features_v2` and appends decisions to `transaction_risk_decisions`, with no stateful operator, watermark, RocksDB configuration or feature mutation. Phase 8 diagnostic amounts remain excluded. Phase 12 establishes the first offline module integration: Python reads an already materialized corrected statistical Delta version, not risk decisions or Kafka, and joins independent labels. No online model-control-plane integration exists.
 
 ## Runtime Baseline
 
 - `streaming-engine`: JDK 21 LTS with Scala 2.13.18, sbt 2.0.9, Spark 4.2.0, and Delta Lake 4.4.0 for the local ingestion runtime.
-- `model-control-plane`: Python 3.13 with uv.
+- `model-control-plane`: Python 3.13 with uv, deltalake 1.6.6 and pyarrow 25.0.1; local verification uses Python 3.13.9.
 
 ## Accepted ADRs
 
@@ -128,6 +138,8 @@ The streaming module can publish bounded validated samples to local Kafka, consu
 - [ADR-020: Currency-safe monetary feature semantics](docs/adr/ADR-020-currency-safe-monetary-feature-semantics.md)
 - [ADR-021: Deterministic risk policy](docs/adr/ADR-021-deterministic-risk-policy.md)
 - [ADR-022: Risk policy identity and evolution](docs/adr/ADR-022-risk-policy-versioning.md)
+- [ADR-023: Independent delayed fraud labels](docs/adr/ADR-023-delayed-fraud-label-contract.md)
+- [ADR-024: Immutable offline dataset snapshots](docs/adr/ADR-024-offline-ml-dataset-snapshots.md)
 
 ## Verification Status
 
@@ -412,18 +424,86 @@ docker compose ps -a
 
 The risk default checkpoint/application ID is distinct from every earlier query. Future policy changes require explicit policy-version/fingerprint and checkpoint/output/application-ID review (ADR-022).
 
+### Phase 12 verification
+
+- Pre-change worktree was clean on `main`; Module B had only its foundation package/import test and no runtime dependencies. No Scala, infrastructure, feature-state or checkpoint contract was changed.
+- `uv lock --python 3.13.9` and `uv sync --frozen --group dev` passed. Effective runtime versions are Python 3.13.9, deltalake 1.6.6 and pyarrow 25.0.1. Narrow transitive additions are arro3-core 0.9.0, deprecated 3.0.0 and wrapt 2.5.0; existing development-tool pins remain unchanged.
+- Actual Scala-written source `/private/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2` read successfully through `DeltaTable` → Arrow. Captured version 0 has five rows, table ID `7e95a8c4-3d73-472f-88e6-8d28850b56f7`, protocol minReaderVersion 1 / minWriterVersion 2, and no optional reader/writer features. All 25 logical field types, exact decimal(18,4)/decimal(38,4) values and UTC-microsecond timestamps were preserved. `make inspect-statistical-features` independently reported the same five rows/schema through Scala Delta 4.4.0.
+- Source schema fingerprint: `ee469e25981c926d20cd926d35c225175c1bc3d4c08c6ecf07c2d8364d9baea5`.
+- `uv run --frozen pytest`: 56 tests passed. Coverage includes delayed labels/revisions, causality, whole-version duplicate IDs, unmatched labels, strict schema/statistical checks, exact decimals, fixed-version reads, stable order/identity, input-byte changes, immutable/conflicting snapshots and CLI behavior. The foundation import test was removed because substantive package/CLI tests now prove the same wiring.
+- `uv run --frozen ruff check .`, `uv run --frozen ruff format --check .` and `uv run --frozen mypy src tests`: passed. PyArrow publishes no typing marker/stubs; only the `pyarrow` vendor import boundary uses a scoped mypy missing-import override. Strict checking of project code remains enabled; runtime schema/tests validate the Arrow boundary.
+- Forced `sbt "Test / testOnly *"`: all 98 existing Scala tests passed across 19 suites under Temurin JDK 21, Scala 2.13.18 and sbt 2.0.9. Module A is unchanged.
+- `uv lock --check`, `uv sync --frozen --group dev` and `uv run --frozen python --version`: passed.
+- `make verify-python`, `make verify-scala` and `make verify`: passed with Kafka/Schema Registry containers stopped (`docker compose ps -a` returned no project containers). The preceding forced Scala suite executed all tests; subsequent incremental sbt verification had no changed tests to rerun.
+- `git diff --check`: passed after implementation and rerun after this state update.
+
+#### Live delayed-label snapshots
+
+Reused the preserved Phase 11 five-event full-path source documented above. Live features were not fabricated in Python and the source was not modified. Ephemeral JSONL `/private/tmp/sentinel-phase12.xAJ61L/labels.jsonl` contains five explicit `SYNTHETIC_FIXTURE` revisions; neither labels nor their observation times come from risk rules/features. Label-byte SHA-256 is `01ca6ac9c730c3b826bf4c34892f0a2489f32b0107e5069d886514e15c3c4e3d`.
+
+T1 AS_OF_TIME is `2030-01-05T00:00:00Z`; T2 is `2030-01-10T00:00:00Z`. Every source row is available by both boundaries.
+
+- A `275afd8d-506d-4344-9070-5a69aea4815d`, ingestion `2030-01-01T12:00:02Z`: LEGIT revision 1 observed Jan 3 00:00 UTC; T1/T2 both 0, revision 1.
+- B `85e1fb21-392f-450a-9276-bf3235542c78`, ingestion `2030-01-01T12:01:02Z`: FRAUD revision 1 observed Jan 3 00:00 UTC; T1/T2 both 1, revision 1.
+- C `05208bc7-0a75-4fb9-8865-d79aa2886035`, ingestion `2030-01-01T12:02:02Z`: LEGIT revision 1 observed Jan 3 00:00 UTC, FRAUD revision 2 observed Jan 8 00:00 UTC; T1 0/revision 1, T2 1/revision 2.
+- D `ea96820e-d48a-4b3c-98bc-4bc35b638745`, ingestion `2030-01-01T12:03:02Z`: LEGIT revision 1 observed Jan 8 00:00 UTC; excluded at T1, 0/revision 1 at T2.
+- E `69d512b4-a4d0-45ec-8dac-632bc897bb02`, ingestion `2030-01-01T12:04:02Z`: unlabeled and excluded from both snapshots, never treated as LEGIT.
+
+T1: three labeled rows, one positive/two negative, two unlabeled exclusions, three eligible revisions/three selected labels. T2: four labeled rows, two positive/two negative, one unlabeled exclusion, five eligible revisions/four selected labels. Both manifests report five full/available feature rows, five total label records, zero duplicate IDs and zero unmatched labels.
+
+- T1 snapshot ID: `475bec5652ee7217e7e07533ffcd8235b92fbbf68831e9215055a6c320f08390`.
+- T1 logical fingerprint: `45e058276da1875ea389a9788ddfd346b9e6c7dde7a637c096d0ecc021301c5a`.
+- T1 Parquet SHA-256: `ee16f510388e76c7b2cd674a979f6a9215a1f0ecdd63c31fe5e12f012a522da2`.
+- T2 snapshot ID: `e0cdb4e458b02523f032d6bfafb0c634f47350e1d3789aa03b5a2b919b034548`.
+- T2 logical fingerprint: `868d54ee874182d8a42c44ef35a9d94a3a698b5190bff2f4682ab198c8e57b14`.
+- T2 Parquet SHA-256: `19e7e0ea2b063d750e93555a44700f28b8d64ed4a81fa2a10c1eb5a04684076d`.
+
+Snapshots are under `/private/tmp/sentinel-phase12.xAJ61L/datasets/<snapshot_id>/`, each with dataset.parquet and manifest.json. Rebuilding T1 after T2 verified its original identity, manifest semantics, logical rows and artifact hashes without replacing files. Matching pinned-runtime Parquet bytes are observed evidence, not a cross-version binary determinism guarantee. `make inspect-ml-dataset` verifies both snapshots.
+
+Phase 12 commands used the existing uv executable on PATH and session-only JDK 21 selection:
+
+```sh
+cd model-control-plane
+uv lock --python 3.13.9
+uv sync --frozen --group dev
+uv run --frozen python --version
+uv run --frozen ruff format .
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+uv run --frozen mypy src tests
+uv run --frozen pytest
+uv lock --check
+cd ..
+make inspect-statistical-features STATISTICAL_FEATURE_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2
+cd streaming-engine
+sbt "Test / testOnly *"
+cd ..
+make build-ml-dataset ML_FEATURES_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2 ML_LABELS_PATH=/tmp/sentinel-phase12.xAJ61L/labels.jsonl ML_AS_OF_TIME=2030-01-05T00:00:00Z ML_SOURCE_DELTA_VERSION=0 ML_DATASET_OUTPUT_ROOT=/tmp/sentinel-phase12.xAJ61L/datasets
+make build-ml-dataset ML_FEATURES_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2 ML_LABELS_PATH=/tmp/sentinel-phase12.xAJ61L/labels.jsonl ML_AS_OF_TIME=2030-01-10T00:00:00Z ML_SOURCE_DELTA_VERSION=0 ML_DATASET_OUTPUT_ROOT=/tmp/sentinel-phase12.xAJ61L/datasets
+make build-ml-dataset ML_FEATURES_DELTA_PATH=/tmp/sentinel-phase11.79hNIz/transaction_statistical_features_v2 ML_LABELS_PATH=/tmp/sentinel-phase12.xAJ61L/labels.jsonl ML_AS_OF_TIME=2030-01-05T00:00:00Z ML_SOURCE_DELTA_VERSION=0 ML_DATASET_OUTPUT_ROOT=/tmp/sentinel-phase12.xAJ61L/datasets
+make inspect-ml-dataset ML_DATASET_SNAPSHOT_PATH=/tmp/sentinel-phase12.xAJ61L/datasets/475bec5652ee7217e7e07533ffcd8235b92fbbf68831e9215055a6c320f08390
+make inspect-ml-dataset ML_DATASET_SNAPSHOT_PATH=/tmp/sentinel-phase12.xAJ61L/datasets/e0cdb4e458b02523f032d6bfafb0c634f47350e1d3789aa03b5a2b919b034548
+docker compose ps -a
+make verify-python
+make verify-scala
+make verify
+git diff --check
+```
+
 ## Known Technical Debt
 
 - Phase 8 `customer_activity_snapshots` retains historical lifecycle diagnostic numeric totals without currency context. It is outside the Phase 9/10 feature pipeline and preserved here; its mixed-currency totals must not be interpreted as a monetary balance or fed into decisioning. A separate correction is needed if that diagnostic is ever used monetarily.
 - V1 Phase 9/10 monetary outputs are dimensionally invalid for mixed-currency inputs and superseded, not repaired retrospectively. Consumers must select fresh v2 feature paths; no in-place migration or retroactive recomputation is implemented.
-- The temporary Python foundation smoke test should be removed once substantive model-control-plane tests provide equivalent build-wiring coverage.
+- Offline snapshot construction is local/in-memory, not a scalable extraction service. Interrupted publication can leave an incomplete exclusive snapshot directory; it fails visibly and needs intentional investigation, not automatic repair.
+- Historical snapshot reconstruction requires retained Delta versions/data and exact label input bytes. Matching v1/v2 source shapes cannot prove corrected monetary semantics without governed path/lineage provenance.
+- External ground-truth quality, label-population selection bias and reconstructed historical feature-materialization availability are not guaranteed by the ingestion/label AS_OF contract.
 - Spark's transitive graph reports minor Netty 4.2.13-over-4.2.9 and SLF4J 2.0.18-over-2.0.17/1.7.36 eviction warnings. The local Spark test, prior producer tests, and live producer/consumer path pass; no speculative override was added without an observed defect.
 - Spark 4.2 couples streaming `transformWithState` to RocksDB. The Phase 8, 9, and 10 provider selections are mandatory for this API in the pinned runtime and are not evidence that RocksDB is otherwise preferable or production-tuned.
 - Risk policy thresholds are explicit engineering verification settings, not calibrated production policy. Same-policy replay under a fresh checkpoint has no lifetime decision uniqueness guard; replay/lineage governance remains required.
 
 ## Known Failures
 
-No current build, test or runtime verification failures are known for Phase 11. The temporary Docker prerequisite blocker was resolved before live verification. Superseded v1 monetary semantics, the separate Phase 8 diagnostic limitation and the corrected historical Phase 10 Makefile failure remain documented above.
+No current build, test or runtime verification failures are known for Phase 12. Actual Scala Delta compatibility and live delayed-label verification passed without starting infrastructure. The earlier Docker prerequisite blocker was resolved before Phase 11 live verification. Superseded v1 monetary semantics, the separate Phase 8 diagnostic limitation and the corrected historical Phase 10 Makefile failure remain documented above.
 
 ## Deferred Decisions
 
@@ -441,14 +521,15 @@ No current build, test or runtime verification failures are known for Phase 11. 
 - Customer state-schema migration and initial-state bootstrapping.
 - Offline/backfill feature recomputation and retroactive correction of online feature rows after late arrivals.
 - Further rolling windows, unique merchant/device state, Welford rolling windows, and retrospective statistical recomputation.
-- Production rule/threshold calibration, numeric risk scoring and fraud labels; current rules demonstrate engineering semantics only.
+- Production rule/threshold calibration and numeric risk scoring; current rules demonstrate engineering semantics only. Independent real ground-truth integrations and production label-quality governance remain deferred; current labels are explicit synthetic fixtures.
 - Historical policy re-evaluation and decision MERGE/idempotency across fresh checkpoints.
 - Payment blocking/enforcement, review workflow and policy promotion/governance services.
-- ML training, MLflow, model serving and shadow/canary evaluation.
+- Time-based train/validation/test boundaries, candidate encoding and class-imbalance treatment.
+- Model training, MLflow, model registry, candidate/champion lifecycle, drift, delayed model-quality evaluation, retraining, serving and shadow/canary evaluation.
 - Customer Kafka partition-remapping migration and Phase 10 checkpoint/state compatibility strategy.
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
 ## Next Planned Capability
 
-Phase 11 is fully implemented and verified locally and through the isolated mixed-currency full path. Work stops at deterministic advisory decisions; no subsequent phase, ML, policy replay or enforcement has been started.
+Phase 12 is fully implemented and verified against the actual corrected Scala Delta boundary, the five-event delayed-label experiment and Docker-independent Python/Scala/root checks. Work stops at reproducible offline labeled snapshots. Phase 13, model training, temporal splitting, policy replay and enforcement have not been started.

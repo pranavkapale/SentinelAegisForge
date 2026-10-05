@@ -5,10 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "sentinelaegisforge-control-plane"
 version = "0.1.0"
-description = "Engineering foundation for the SentinelAegisForge model control plane"
+description = "Offline dataset contracts for the SentinelAegisForge model control plane"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+  "deltalake==1.6.6",
+  "pyarrow==25.0.1",
+]
 
 [dependency-groups]
 dev = [
@@ -35,3 +38,9 @@ select = ["E", "F", "I", "UP"]
 python_version = "3.13"
 strict = true
 files = ["src", "tests"]
+
+# PyArrow ships no typing marker/stubs. Keep our code strict; validate its boundary
+# through exact Arrow schemas and runtime tests rather than adding another dependency.
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true

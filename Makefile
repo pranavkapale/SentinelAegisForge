@@ -33,6 +33,12 @@ HIGH_VELOCITY_THRESHOLD_5M ?=
 HIGH_AMOUNT_ZSCORE_THRESHOLD ?=
 COMBINED_VELOCITY_THRESHOLD_5M ?=
 COMBINED_AMOUNT_ZSCORE_THRESHOLD ?=
+ML_FEATURES_DELTA_PATH ?= $(STATISTICAL_FEATURE_DELTA_PATH)
+ML_LABELS_PATH ?=
+ML_AS_OF_TIME ?=
+ML_SOURCE_DELTA_VERSION ?=
+ML_DATASET_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/datasets/transaction-fraud-v1
+ML_DATASET_SNAPSHOT_PATH ?=
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -134,3 +140,12 @@ process-risk-decisions:
 
 inspect-risk-decisions:
 	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.risk.TransactionRiskDecisionInspectionApp --delta-path=$(RISK_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
+
+.PHONY: build-ml-dataset inspect-ml-dataset
+build-ml-dataset:
+	@test -n "$(ML_LABELS_PATH)" && test -n "$(ML_AS_OF_TIME)" || { echo "Supply ML_LABELS_PATH and ML_AS_OF_TIME explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.datasets.cli build --features-delta "$(ML_FEATURES_DELTA_PATH)" --labels "$(ML_LABELS_PATH)" --as-of "$(ML_AS_OF_TIME)" --output-root "$(ML_DATASET_OUTPUT_ROOT)" $(if $(ML_SOURCE_DELTA_VERSION),--source-version=$(ML_SOURCE_DELTA_VERSION),)
+
+inspect-ml-dataset:
+	@test -n "$(ML_DATASET_SNAPSHOT_PATH)" || { echo "Supply ML_DATASET_SNAPSHOT_PATH explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.datasets.cli inspect --snapshot "$(ML_DATASET_SNAPSHOT_PATH)"
