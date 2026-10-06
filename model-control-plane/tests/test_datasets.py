@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -346,11 +347,74 @@ def test_corrupt_statistical_or_monetary_rows_are_not_repaired(changes: dict[str
         feature_rows(pa.Table.from_pylist([feature(1, **changes)], schema=SOURCE_SCHEMA))
 
 
+@pytest.mark.parametrize("mean", [-1.0, 0.0])
+def test_nonpositive_prior_mean_with_history_fails(mean: float) -> None:
+    row = feature(
+        1,
+        prior_amount_observation_count=1,
+        prior_amount_mean=mean,
+        statistical_feature_status="INSUFFICIENT_VARIANCE_HISTORY",
+    )
+    with pytest.raises(FeatureDataError, match="prior_amount_mean must be positive"):
+        feature_rows(pa.Table.from_pylist([row], schema=SOURCE_SCHEMA))
+
+
+def test_ready_row_with_materially_incorrect_finite_zscore_fails() -> None:
+    row = feature(
+        1,
+        prior_amount_observation_count=2,
+        prior_amount_mean=100.0,
+        prior_amount_stddev=10.0,
+        amount_zscore=4.0,  # (123.4567 - 100.0) / 10.0 is about 2.34567.
+        statistical_feature_status="READY",
+    )
+    with pytest.raises(FeatureDataError, match="amount_zscore is inconsistent"):
+        feature_rows(pa.Table.from_pylist([row], schema=SOURCE_SCHEMA))
+
+
+def test_consistent_ready_row_passes_without_changing_exact_amount_or_zscore() -> None:
+    amount = Decimal("123.4567")
+    zscore = (float(amount) - 100.0) / 10.0
+    row = feature(
+        1,
+        amount=amount,
+        prior_amount_observation_count=2,
+        prior_amount_mean=100.0,
+        prior_amount_stddev=10.0,
+        amount_zscore=zscore,
+        statistical_feature_status="READY",
+    )
+    checked = feature_rows(pa.Table.from_pylist([row], schema=SOURCE_SCHEMA))[0]
+    assert checked["amount"] == amount
+    assert checked["amount_zscore"] == zscore
+
+
+@pytest.mark.parametrize(
+    "zscore",
+    [1.054829874926953, math.nextafter(1.054829874926953, math.inf)],
+)
+def test_real_phase10_double_zscore_and_one_ulp_roundoff_pass(zscore: float) -> None:
+    # Observed in the five-event Phase 10.1 Delta verification lineage.
+    row = feature(
+        1,
+        amount=Decimal("7298.0100"),
+        prior_amount_observation_count=2,
+        prior_amount_mean=7222.475,
+        prior_amount_stddev=71.60870373076101,
+        amount_zscore=zscore,
+        statistical_feature_status="READY",
+    )
+    assert (
+        feature_rows(pa.Table.from_pylist([row], schema=SOURCE_SCHEMA))[0]["amount_zscore"]
+        == zscore
+    )
+
+
 def test_ready_statistics_and_large_exact_monetary_sum_are_preserved(tmp_path: Path) -> None:
     value = feature(
         1,
         prior_amount_observation_count=2,
-        prior_amount_mean=100.0,
+        prior_amount_mean=223.4567,
         prior_amount_stddev=10.0,
         amount_zscore=-10.0,
         statistical_feature_status="READY",

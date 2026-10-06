@@ -14,6 +14,10 @@ from .errors import FeatureDataError, SourceSchemaError
 from .labels import require_utc
 
 DATASET_CONTRACT_VERSION = "transaction-fraud-v1"
+# Phase 10.1 stores Double approximations. Permit ordinary Double roundoff in
+# recomputed z-scores, including values near zero, without accepting material drift.
+ZSCORE_REL_TOL = 1e-9
+ZSCORE_ABS_TOL = 1e-9
 CANDIDATE_FEATURE_COLUMNS = (
     "amount",
     "currency",
@@ -152,6 +156,8 @@ def _validate_statistics(row: dict[str, object], event_id: str) -> None:
     for value in (mean, stddev, z):
         if value is not None and (not isinstance(value, float) or not math.isfinite(value)):
             raise FeatureDataError(f"{event_id}: statistical values must be finite doubles or null")
+    if count > 0 and (not isinstance(mean, float) or mean <= 0):
+        raise FeatureDataError(f"{event_id}: prior_amount_mean must be positive with history")
     status = row["statistical_feature_status"]
     consistent = False
     if status == "NO_HISTORY":
@@ -176,3 +182,10 @@ def _validate_statistics(row: dict[str, object], event_id: str) -> None:
         )
     if not consistent:
         raise FeatureDataError(f"{event_id}: inconsistent statistical context {status}")
+    if status == "READY":
+        # Mirror Scala's decimal-to-Double scoring calculation for validation only.
+        expected = (float(cast(Decimal, row["amount"])) - cast(float, mean)) / cast(float, stddev)
+        if not math.isfinite(expected) or not math.isclose(
+            cast(float, z), expected, rel_tol=ZSCORE_REL_TOL, abs_tol=ZSCORE_ABS_TOL
+        ):
+            raise FeatureDataError(f"{event_id}: amount_zscore is inconsistent with prior state")

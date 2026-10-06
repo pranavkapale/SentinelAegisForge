@@ -88,13 +88,14 @@ Phases 0–11 remain preserved and verified. Module B now reads a fixed version 
 
 - Pinned Python Delta/Arrow reader that captures source table ID, version, protocol, complete 25-column schema and deterministic schema fingerprint.
 - Strict source schema/statistical consistency checks and whole-version unique event-ID validation; ambiguous replay rows fail rather than being silently deduplicated.
+- Phase 12 mathematical consistency gate requiring a positive prior mean for any positive observation count and a READY z-score consistent with exact transaction amount converted to Double, prior mean and prior standard deviation within documented `math.isclose` tolerances. Source values remain unchanged.
 - Independent typed FRAUD/LEGIT JSONL label histories with UTC observation times, explicit provenance, unique contiguous revisions and causal validation.
 - Explicit AS_OF_TIME ingestion filtering and latest-eligible-revision resolution with strict one-to-one joins; unlabeled rows are excluded/countable, never negative examples, and unmatched eligible labels fail.
 - Immutable 29-column `transaction-fraud-v1` Parquet snapshots, ordered by event time/event ID, preserving all source fields, exact monetary decimals and selected label provenance.
 - Deterministic SHA-256 snapshot identity, raw label-byte hash, source-schema fingerprint, ordered logical dataset fingerprint and Parquet integrity hash; existing snapshots are verified, not overwritten.
 - Declared 11-column candidate feature allowlist separated from identity, Kafka lineage, label metadata and deferred high-cardinality identifiers. Risk decisions are neither dataset inputs nor ground-truth labels.
 - Local build/inspect CLI and narrow Makefile targets consuming already materialized features without starting Scala or infrastructure.
-- Fifty-six substantive Docker-independent Python tests superseding the temporary package-import smoke test, plus live T1/T2 label-revision and unchanged-T1 evidence from the real Phase 11 corrected feature lineage.
+- Sixty-two substantive Docker-independent Python tests superseding the temporary package-import smoke test, plus live T1/T2 label-revision and unchanged-T1 evidence from the real Phase 11 corrected feature lineage.
 
 No DLQ, late-event side output, merchant/device cardinality state, numeric composite risk score, model training, model lifecycle or enforcement capability is implemented. Offline dataset preparation is not a trained fraud detector. Producer idempotence, Spark checkpoint source progress, Delta micro-batch transaction suppression, watermark-bounded business-event deduplication, customer feature state and deterministic advisory decisions are distinct boundaries; none is an unconditional exactly-once business-processing claim.
 
@@ -489,6 +490,16 @@ make verify-scala
 make verify
 git diff --check
 ```
+
+### Phase 12 statistical consistency hardening verification
+
+- The 25-column source schema, exact `decimal(18,4)` transaction amount and existing NO_HISTORY / INSUFFICIENT_VARIANCE_HISTORY / ZERO_VARIANCE rules are unchanged. A positive observation count now requires a finite, strictly positive prior mean. READY uses the Phase 10.1 Double expression `(float(amount) - prior_mean) / prior_stddev` as a validation-only comparison; `math.isclose(rel_tol=1e-9, abs_tol=1e-9)` allows Double roundoff and rejects material disagreement. Neither source amount nor stored z-score is replaced.
+- Added focused negative/zero mean, materially incorrect finite READY z-score, valid READY, and actual Phase 10.1 READY Double/one-ULP tests. Corrected the prior large-decimal preservation test fixture so its stored negative z-score matches its amount, mean and standard deviation. No test was removed and no dependency was added.
+- `uv run --frozen pytest`: 62 passed under Python 3.13.9. `uv run --frozen ruff check .`, `uv run --frozen ruff format --check .` and `uv run --frozen mypy src tests`: passed.
+- `make verify-python`: passed with 62 tests; `make verify-scala`: passed under Temurin JDK 21. Its incremental sbt testQuick ran no changed Scala tests. Forced `sbt "Test / testOnly *"`: all 98 tests across 19 suites passed.
+- `make verify`: passed for both modules; Scala's incremental target again had no changed tests to rerun, while Python executed all 62 tests. No Kafka/Schema Registry runtime was needed.
+- Rebuilding the preserved live T1 snapshot from the real Phase 10.1 Delta version 0 passed the stronger gate and verified the same snapshot ID, logical fingerprint and Parquet hash without replacing existing artifacts.
+- `git diff --check`: passed after this update.
 
 ## Known Technical Debt
 
