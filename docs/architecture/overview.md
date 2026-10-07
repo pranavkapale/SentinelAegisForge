@@ -2,10 +2,10 @@
 
 ## Current architecture
 
-Phase 12's offline dataset boundary builds on two independently buildable modules in one repository:
+Phase 13's temporal offline baseline builds on two independently buildable modules in one repository:
 
 - `streaming-engine` is a Scala 2.13/JDK 21 build with a version 1 transaction domain contract, pure candidate validation, a deterministic seeded simulator, explicit Apache Avro mapping, a bounded registry-backed Kafka producer, Spark 4.2.0 Structured Streaming ingestion, a local Delta 4.4.0 validated-record audit table, a separate watermark-bounded event-ID deduplication table, a customer-keyed activity lifecycle, two prior-only rolling customer features, prior-observed statistical amount features, and stateless deterministic advisory risk decisions. It contains no ML or enforcement capability.
-- `model-control-plane` is a Python 3.13 package with pytest, Ruff, and mypy. It reads fixed corrected Delta feature versions through delta-rs/Arrow, joins independent delayed label revisions at an explicit AS_OF_TIME and builds immutable offline Parquet snapshots with manifests/fingerprints. It contains no training, model serving or model lifecycle implementation.
+- `model-control-plane` is a Python 3.13 package with pytest, Ruff, and mypy. It reads fixed corrected Delta feature versions through delta-rs/Arrow, joins independent delayed labels, builds immutable offline snapshots, then trains one local temporal logistic baseline from those verified snapshots. It has no deployable model or serving lifecycle.
 - The repository root provides pinned, single-node Apache Kafka 4.3.1 and Confluent Schema Registry 8.3.2 runtimes for local development. Infrastructure provisions only `transactions.raw` and its `transactions.raw-value` schema subject.
 - `contracts/events/transaction-event-v1.avsc` is the canonical Avro value schema. Published records use UTF-8 `customer_id` keys and registry-managed Avro values.
 - Root verification, repository hygiene, baseline CI, this architecture overview, and architecture decision records provide shared engineering conventions.
@@ -15,6 +15,8 @@ The Scala module can publish bounded deterministic samples to local Kafka, consu
 Phase 11 consumes only `transaction_statistical_features_v2` with pure ordered R001 velocity, R002 positive READY z-score and R003 combined rules. It preserves every source feature/lineage column and appends CLEAR/REVIEW, ordered rule/reason arrays and version/fingerprint to `transaction_risk_decisions`. There is no stateful operator or RocksDB setting in this query. Explicit thresholds are engineering policy, not production calibration. Decisions are advisory data, not payment actions or numeric scores. A dedicated checkpoint and Delta transaction identity protect source resume and batch retries, not lifetime event+policy uniqueness. See [deterministic risk engine](deterministic-risk-engine.md), [ADR-021](../adr/ADR-021-deterministic-risk-policy.md) and [ADR-022](../adr/ADR-022-risk-policy-versioning.md).
 
 Phase 12 independently joins feature event IDs to FRAUD/LEGIT outcome revisions, never rule dispositions. It rejects duplicate source IDs, corrupt features and invalid/uncausal label histories, filters ingestion/label availability at AS_OF_TIME and excludes unlabeled events. Snapshots preserve monetary decimals and lineage but declare a separate candidate model-feature allowlist. Dataset identity, source schema and logical-data fingerprints make local builds inspectable and reproducible; they are not model-quality claims. See [offline ML dataset](offline-ml-dataset.md), [ADR-023](../adr/ADR-023-delayed-fraud-label-contract.md) and [ADR-024](../adr/ADR-024-offline-ml-dataset-snapshots.md).
+
+Phase 13 verifies a Phase 12 snapshot before fitting. It splits by explicit ingestion-time boundaries, gates training labels by `train_end`, fits one training-only sklearn preprocessing/logistic pipeline, then writes separate validation/test predictions and metrics with dataset provenance. Controlled fixtures exercise mechanics; the real four-row labeled snapshot fails eligibility and provides no model-quality evidence. See [offline ML baseline](offline-ml-baseline.md), [ADR-025](../adr/ADR-025-temporal-ml-evaluation.md) and [ADR-026](../adr/ADR-026-logistic-regression-baseline.md).
 
 ## Target architecture
 

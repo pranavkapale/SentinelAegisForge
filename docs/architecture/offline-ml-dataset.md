@@ -14,7 +14,7 @@ ordered labeled dataset.parquet
 immutable manifest + fingerprints
 ```
 
-Module B now reads local corrected feature tables through delta-rs, without PySpark, pandas or a model. Module A remains unchanged. `transaction_risk_decisions` is not an input: CLEAR/REVIEW is engineering policy, never FRAUD/LEGIT ground truth. The source schema must be the complete ordered 25-column Phase 10.1 contract, not the 31-column risk output. Historical v1 feature schemas have the same shape, so semantic provenance must come from a governed corrected-v2 path/lineage, not schema inference.
+Phase 12 snapshot construction reads local corrected feature tables through delta-rs without PySpark or pandas. Phase 13 consumes only its verified output. Module A remains unchanged. `transaction_risk_decisions` is not an input: CLEAR/REVIEW is engineering policy, never FRAUD/LEGIT ground truth. The source schema must be the complete ordered 25-column Phase 10.1 contract, not the 31-column risk output. Historical v1 feature schemas have the same shape, so semantic provenance must come from a governed corrected-v2 path/lineage, not schema inference.
 
 ## Feature provenance and validation
 
@@ -54,7 +54,7 @@ Logical fingerprint covers the output schema plus every ordered logical row: exa
 
 ## Candidate model columns, not automatic training inputs
 
-The declared allowlist is amount, currency, country, transaction_type, prior_transaction_count_5m, prior_amount_sum_10m, prior_amount_observation_count, prior_amount_mean, prior_amount_stddev, amount_zscore and statistical_feature_status. Future encoding and currency-aware model interpretation are separate decisions; this phase does not transform or train on them.
+The declared allowlist is amount, currency, country, transaction_type, prior_transaction_count_5m, prior_amount_sum_10m, prior_amount_observation_count, prior_amount_mean, prior_amount_stddev, amount_zscore and statistical_feature_status. The Phase 12 builder does not transform or train on them; Phase 13's separate baseline consumes this list. Currency-aware model interpretation beyond categorical encoding remains a separate decision.
 
 All IDs, event/ingestion timestamps, schema_version, Kafka key/topic/partition/offset/timestamp and label fields are **not baseline candidate features**. They remain for audit and future temporal splitting. merchant_id, device_id and ip_address specifically require later cardinality/encoding/leakage analysis. Risk dispositions, matched rules, reason codes and policy identity neither appear in this source/dataset nor belong in candidate inputs.
 
@@ -77,4 +77,4 @@ Demonstrated guarantees: explicit fixed source version, unique input event ident
 
 Not guaranteed: external ground-truth quality, complete population labels, absence of labeled-population selection bias, reconstructed feature materialization availability at historical AS_OF_TIME, retroactive feature correction, historical Delta availability after vacuum, cross-version Parquet bytes, or model quality. AS_OF semantics use stored ingestion/label times and existing online/as-observed features; they do not recompute historical Welford or rolling state.
 
-No model, training, MLflow, model registry, random split, balancing, drift, retraining, serving or evaluation metrics exist. Time-based training/validation/test boundaries and the remaining ML lifecycle stay deferred.
+Phase 12 itself performs no model training, splitting or balancing. Phase 13 adds a separate temporal baseline; MLflow, model registry, drift, retraining and serving remain deferred.

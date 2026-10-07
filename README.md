@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions and, in Phase 12, reproducible offline feature/label snapshots with delayed-label point-in-time semantics. No trained model or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, and a local temporal logistic-regression training baseline. No deployable model or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads and immutable offline snapshots joined to independent delayed outcome labels. Training, drift, evaluation and model governance remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots and an offline baseline trainer. Model governance, serving and drift remain deferred.
 
 ## Current status
 
-The repository is in **Phase 12 — Offline ML Dataset Contract & Delayed Labels**. Module B reads corrected `transaction_statistical_features_v2` snapshots, resolves independent label revisions at an explicit AS_OF_TIME, excludes unlabeled events and writes Parquet plus a reproducibility manifest. CLEAR/REVIEW decisions are never labels or candidate ML inputs. Module A's currency-safe features, advisory decisions and earlier state/checkpoint semantics remain unchanged. No model training, random split or class balancing occurs.
+The repository is in **Phase 13 — Temporal ML Baseline Contract & Training Mechanics**. Module B trains one in-memory logistic baseline from verified Phase 12 snapshots, using explicit ingestion-time splits and training labels known by the training cutoff. Validation/test predictions, metrics and a reproducibility manifest are durable; no deployable model artifact exists. The existing four-row live labeled snapshot is insufficient for meaningful training or fraud-quality evidence. Module A's currency-safe features and advisory decisions remain unchanged.
 
 ## Local development
 
@@ -126,6 +126,19 @@ make inspect-ml-dataset ML_DATASET_SNAPSHOT_PATH=/absolute/path/<snapshot_id>
 ```
 
 These commands do not start infrastructure. See the [offline dataset contract](docs/architecture/offline-ml-dataset.md) for source-version selection, label revisions, fingerprints and candidate feature boundaries.
+
+Run the local training baseline only on an eligible immutable snapshot:
+
+```sh
+make train-baseline-model \
+  BASELINE_DATASET_SNAPSHOT_PATH=/absolute/path/to/<snapshot_id> \
+  BASELINE_TRAIN_END=2030-01-03T00:00:00Z \
+  BASELINE_VALIDATION_END=2030-01-05T00:00:00Z \
+  BASELINE_TEST_END=2030-01-07T00:00:00Z
+make inspect-baseline-run BASELINE_RUN_PATH=/absolute/path/to/<training_run_id>
+```
+
+See the [temporal baseline contract](docs/architecture/offline-ml-baseline.md). Fixture metrics verify implementation mechanics only; no production model-quality claim is made.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

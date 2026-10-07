@@ -58,3 +58,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-022: Risk policy identity and evolution](ADR-022-risk-policy-versioning.md)
 - [ADR-023: Independent delayed outcome labels](ADR-023-delayed-fraud-label-contract.md)
 - [ADR-024: Immutable offline dataset snapshots](ADR-024-offline-ml-dataset-snapshots.md)
+- [ADR-025: Ingestion-time baseline evaluation](ADR-025-temporal-ml-evaluation.md)
+- [ADR-026: One offline logistic-regression baseline](ADR-026-logistic-regression-baseline.md)

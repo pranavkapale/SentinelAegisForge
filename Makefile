@@ -39,6 +39,15 @@ ML_AS_OF_TIME ?=
 ML_SOURCE_DELTA_VERSION ?=
 ML_DATASET_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/datasets/transaction-fraud-v1
 ML_DATASET_SNAPSHOT_PATH ?=
+BASELINE_DATASET_SNAPSHOT_PATH ?=
+BASELINE_TRAIN_END ?=
+BASELINE_VALIDATION_END ?=
+BASELINE_TEST_END ?=
+BASELINE_MIN_TRAIN_ROWS ?= 20
+BASELINE_MIN_VALIDATION_ROWS ?= 10
+BASELINE_MIN_TEST_ROWS ?= 10
+BASELINE_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/runs/fraud-logistic-baseline-v1
+BASELINE_RUN_PATH ?=
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -149,3 +158,12 @@ build-ml-dataset:
 inspect-ml-dataset:
 	@test -n "$(ML_DATASET_SNAPSHOT_PATH)" || { echo "Supply ML_DATASET_SNAPSHOT_PATH explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.datasets.cli inspect --snapshot "$(ML_DATASET_SNAPSHOT_PATH)"
+
+.PHONY: train-baseline-model inspect-baseline-run
+train-baseline-model:
+	@test -n "$(BASELINE_DATASET_SNAPSHOT_PATH)" && test -n "$(BASELINE_TRAIN_END)" && test -n "$(BASELINE_VALIDATION_END)" && test -n "$(BASELINE_TEST_END)" || { echo "Supply BASELINE_DATASET_SNAPSHOT_PATH and all three UTC split boundaries."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.training.cli train --dataset-snapshot "$(BASELINE_DATASET_SNAPSHOT_PATH)" --train-end "$(BASELINE_TRAIN_END)" --validation-end "$(BASELINE_VALIDATION_END)" --test-end "$(BASELINE_TEST_END)" --min-train-rows "$(BASELINE_MIN_TRAIN_ROWS)" --min-validation-rows "$(BASELINE_MIN_VALIDATION_ROWS)" --min-test-rows "$(BASELINE_MIN_TEST_ROWS)" --output-root "$(BASELINE_OUTPUT_ROOT)"
+
+inspect-baseline-run:
+	@test -n "$(BASELINE_RUN_PATH)" || { echo "Supply BASELINE_RUN_PATH explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.training.cli inspect --run "$(BASELINE_RUN_PATH)"
