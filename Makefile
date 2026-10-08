@@ -48,6 +48,23 @@ BASELINE_MIN_VALIDATION_ROWS ?= 10
 BASELINE_MIN_TEST_ROWS ?= 10
 BASELINE_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/runs/fraud-logistic-baseline-v1
 BASELINE_RUN_PATH ?=
+SCENARIO_SEED ?=
+SCENARIO_BASE_TIME ?=
+SCENARIO_COUNT ?= 1500
+SCENARIO_CUSTOMERS ?= 90
+SCENARIO_HORIZON_DAYS ?= 9
+SCENARIO_USD_WEIGHT_PERCENT ?= 65
+SCENARIO_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/scenarios
+SCENARIO_CORPUS_PATH ?=
+SCENARIO_WAVE ?=
+SCENARIO_TRAIN_END ?=
+SCENARIO_VALIDATION_END ?=
+SCENARIO_TEST_END ?=
+SCENARIO_AS_OF ?=
+SCENARIO_VALIDATED_PATH ?=
+SCENARIO_DEDUPLICATED_PATH ?=
+SCENARIO_ROLLING_PATH ?=
+SCENARIO_STATISTICAL_PATH ?=
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -167,3 +184,25 @@ train-baseline-model:
 inspect-baseline-run:
 	@test -n "$(BASELINE_RUN_PATH)" || { echo "Supply BASELINE_RUN_PATH explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.training.cli inspect --run "$(BASELINE_RUN_PATH)"
+
+.PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
+generate-synthetic-corpus:
+	@test -n "$(SCENARIO_SEED)" && test -n "$(SCENARIO_BASE_TIME)" || { echo "Supply SCENARIO_SEED and SCENARIO_BASE_TIME."; exit 1; }
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.simulation.SyntheticScenarioApp generate --seed=$(SCENARIO_SEED) --base-time=$(SCENARIO_BASE_TIME) --count=$(SCENARIO_COUNT) --customers=$(SCENARIO_CUSTOMERS) --horizon-days=$(SCENARIO_HORIZON_DAYS) --usd-weight-percent=$(SCENARIO_USD_WEIGHT_PERCENT) --output-root=$(SCENARIO_OUTPUT_ROOT)"
+
+inspect-synthetic-corpus:
+	@test -n "$(SCENARIO_CORPUS_PATH)" || { echo "Supply SCENARIO_CORPUS_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.synthetic.cli inspect --corpus "$(SCENARIO_CORPUS_PATH)"
+
+scenario-quality:
+	@test -n "$(SCENARIO_CORPUS_PATH)" && test -n "$(SCENARIO_TRAIN_END)" && test -n "$(SCENARIO_VALIDATION_END)" && test -n "$(SCENARIO_TEST_END)" && test -n "$(SCENARIO_AS_OF)" || { echo "Supply the corpus path and all four UTC quality boundaries."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.synthetic.cli quality --corpus "$(SCENARIO_CORPUS_PATH)" --train-end "$(SCENARIO_TRAIN_END)" --validation-end "$(SCENARIO_VALIDATION_END)" --test-end "$(SCENARIO_TEST_END)" --as-of "$(SCENARIO_AS_OF)"
+
+publish-synthetic-wave:
+	@test -n "$(SCENARIO_CORPUS_PATH)" && test -n "$(SCENARIO_WAVE)" || { echo "Supply SCENARIO_CORPUS_PATH and SCENARIO_WAVE (0, 1 or 2)."; exit 1; }
+	$(MAKE) verify-infra
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.simulation.SyntheticScenarioApp publish --corpus=$(SCENARIO_CORPUS_PATH) --wave=$(SCENARIO_WAVE) --bootstrap-servers=$(BOOTSTRAP_SERVERS) --schema-registry-url=$(SCHEMA_REGISTRY_URL)"
+
+reconcile-synthetic-corpus:
+	@test -n "$(SCENARIO_CORPUS_PATH)" && test -n "$(SCENARIO_VALIDATED_PATH)" && test -n "$(SCENARIO_DEDUPLICATED_PATH)" && test -n "$(SCENARIO_ROLLING_PATH)" && test -n "$(SCENARIO_STATISTICAL_PATH)" || { echo "Supply the corpus and all four isolated Delta paths."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.synthetic.cli reconcile --corpus "$(SCENARIO_CORPUS_PATH)" --validated "$(SCENARIO_VALIDATED_PATH)" --deduplicated "$(SCENARIO_DEDUPLICATED_PATH)" --rolling "$(SCENARIO_ROLLING_PATH)" --statistical "$(SCENARIO_STATISTICAL_PATH)"

@@ -3,6 +3,8 @@
 This Python 3.13 package builds reproducible offline snapshots from the corrected
 `transaction_statistical_features_v2` Delta table and independent delayed JSONL labels.
 Phase 13 adds one local pandas/sklearn logistic baseline over those verified snapshots.
+Phase 14 can consume independent delayed synthetic labels after the Scala-generated
+transaction plan has passed through the real Kafka/Spark/Delta feature lineage.
 It does not create a deployable model or serving endpoint.
 
 From the repository root:
@@ -37,4 +39,5 @@ revision histories. Unlabeled rows are excluded; risk CLEAR/REVIEW decisions are
 Existing snapshots are verified, not overwritten. See the
 [offline dataset contract](../docs/architecture/offline-ml-dataset.md),
 [temporal baseline](../docs/architecture/offline-ml-baseline.md),
+[synthetic corpus workflow](../docs/architecture/synthetic-fraud-corpus.md),
 [ADRs](../docs/adr/README.md) and [project state](../PROJECT_STATE.md).

@@ -60,3 +60,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-024: Immutable offline dataset snapshots](ADR-024-offline-ml-dataset-snapshots.md)
 - [ADR-025: Ingestion-time baseline evaluation](ADR-025-temporal-ml-evaluation.md)
 - [ADR-026: One offline logistic-regression baseline](ADR-026-logistic-regression-baseline.md)
+- [ADR-027: Deterministic synthetic fraud corpus](ADR-027-deterministic-synthetic-fraud-corpus.md)
+- [ADR-028: Synthetic corpus integration and evaluation](ADR-028-synthetic-corpus-integration-and-evaluation.md)

@@ -1,6 +1,6 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, and a local temporal logistic-regression training baseline. No deployable model or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, and a controlled synthetic corpus for full-path validation. No deployable model or enforcement behavior is implemented.
 
 ## Modules
 
@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 13 — Temporal ML Baseline Contract & Training Mechanics**. Module B trains one in-memory logistic baseline from verified Phase 12 snapshots, using explicit ingestion-time splits and training labels known by the training cutoff. Validation/test predictions, metrics and a reproducibility manifest are durable; no deployable model artifact exists. The existing four-row live labeled snapshot is insufficient for meaningful training or fraud-quality evidence. Module A's currency-safe features and advisory decisions remain unchanged.
+The repository is in **Phase 14 — Deterministic Synthetic Fraud Corpus & End-to-End ML Validation**. A bounded, seeded Scala scenario produces separate transaction and private outcome artifacts. Chronological waves traverse the existing Kafka/Spark/Delta feature pipeline, then independent delayed labels feed the unchanged Phase 12 snapshot and Phase 13 trainer. Event IDs reconcile across all required durable stages. The resulting metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no deployable model exists.
 
 ## Local development
 
@@ -139,6 +139,15 @@ make inspect-baseline-run BASELINE_RUN_PATH=/absolute/path/to/<training_run_id>
 ```
 
 See the [temporal baseline contract](docs/architecture/offline-ml-baseline.md). Fixture metrics verify implementation mechanics only; no production model-quality claim is made.
+
+Generate and inspect an isolated synthetic corpus before publishing any events:
+
+```sh
+make generate-synthetic-corpus SCENARIO_SEED=14027 SCENARIO_BASE_TIME=2030-01-01T00:00:00Z
+make inspect-synthetic-corpus SCENARIO_CORPUS_PATH=/absolute/path/.local/ml/scenarios/<corpus_id>
+```
+
+Publishing requires the local Kafka/Schema Registry runtime and a fresh, isolated ingestion checkpoint initialized at `latest` before the first wave. Complete validated, deduplicated, rolling and statistical stages for each wave before advancing. The [synthetic corpus guide](docs/architecture/synthetic-fraud-corpus.md) describes the lineage, reconciliation and synthetic-only evaluation boundaries. Generated plans, private truth, labels, Delta tables and model-run outputs remain under ignored `.local/` storage.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
