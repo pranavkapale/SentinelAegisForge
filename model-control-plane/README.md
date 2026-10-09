@@ -5,6 +5,7 @@ This Python 3.13 package builds reproducible offline snapshots from the correcte
 Phase 13 adds one local pandas/sklearn logistic baseline over those verified snapshots.
 Phase 14 can consume independent delayed synthetic labels after the Scala-generated
 transaction plan has passed through the real Kafka/Spark/Delta feature lineage.
+Phase 15 indexes already verified immutable training runs in local SQLite-backed MLflow.
 It does not create a deployable model or serving endpoint.
 
 From the repository root:
@@ -28,6 +29,19 @@ make train-baseline-model \
   BASELINE_TEST_END=2030-01-07T00:00:00Z
 make inspect-baseline-run BASELINE_RUN_PATH=/absolute/path/to/<training_run_id>
 ```
+
+Track that existing run without fitting again; the default local store is under the
+repository's ignored `.local/mlflow/` directory:
+
+```sh
+make track-baseline-run BASELINE_RUN_PATH=/absolute/path/to/<training_run_id>
+make inspect-tracked-run MLFLOW_RUN_ID=<provider-run-id>
+make compare-tracked-runs
+```
+
+`make mlflow-ui` is an optional localhost-only inspection UI. See the
+[tracking contract](../docs/architecture/mlflow-experiment-tracking.md) for
+source validation, explicit corpus linkage and retry/conflict behavior.
 
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise

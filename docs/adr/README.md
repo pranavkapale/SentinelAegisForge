@@ -62,3 +62,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-026: One offline logistic-regression baseline](ADR-026-logistic-regression-baseline.md)
 - [ADR-027: Deterministic synthetic fraud corpus](ADR-027-deterministic-synthetic-fraud-corpus.md)
 - [ADR-028: Synthetic corpus integration and evaluation](ADR-028-synthetic-corpus-integration-and-evaluation.md)
+- [ADR-029: Local MLflow experiment tracking and run identity](ADR-029-local-mlflow-experiment-tracking.md)

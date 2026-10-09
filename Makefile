@@ -48,6 +48,16 @@ BASELINE_MIN_VALIDATION_ROWS ?= 10
 BASELINE_MIN_TEST_ROWS ?= 10
 BASELINE_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/runs/fraud-logistic-baseline-v1
 BASELINE_RUN_PATH ?=
+MLFLOW_DB ?= $(CURDIR)/.local/mlflow/tracking.db
+MLFLOW_ARTIFACTS ?= $(CURDIR)/.local/mlflow/artifacts
+MLFLOW_EXPERIMENT ?= sentinelaegisforge-synthetic-fraud-baseline
+MLFLOW_RUN_ID ?=
+MLFLOW_UI_PORT ?= 5000
+MLFLOW_CORPUS_PATH ?=
+MLFLOW_VALIDATED_PATH ?=
+MLFLOW_DEDUPLICATED_PATH ?=
+MLFLOW_ROLLING_PATH ?=
+MLFLOW_STATISTICAL_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -184,6 +194,21 @@ train-baseline-model:
 inspect-baseline-run:
 	@test -n "$(BASELINE_RUN_PATH)" || { echo "Supply BASELINE_RUN_PATH explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.training.cli inspect --run "$(BASELINE_RUN_PATH)"
+
+.PHONY: track-baseline-run inspect-tracked-run compare-tracked-runs mlflow-ui
+track-baseline-run:
+	@test -n "$(BASELINE_RUN_PATH)" || { echo "Supply BASELINE_RUN_PATH explicitly; tracking never retrains."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.tracking.cli --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" track --run "$(BASELINE_RUN_PATH)" $(if $(MLFLOW_CORPUS_PATH),--corpus "$(MLFLOW_CORPUS_PATH)",) $(if $(MLFLOW_VALIDATED_PATH),--validated "$(MLFLOW_VALIDATED_PATH)",) $(if $(MLFLOW_DEDUPLICATED_PATH),--deduplicated "$(MLFLOW_DEDUPLICATED_PATH)",) $(if $(MLFLOW_ROLLING_PATH),--rolling "$(MLFLOW_ROLLING_PATH)",) $(if $(MLFLOW_STATISTICAL_PATH),--statistical "$(MLFLOW_STATISTICAL_PATH)",)
+
+inspect-tracked-run:
+	@test -n "$(MLFLOW_RUN_ID)" || { echo "Supply MLFLOW_RUN_ID explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.tracking.cli --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" inspect --run-id "$(MLFLOW_RUN_ID)"
+
+compare-tracked-runs:
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.tracking.cli --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" compare
+
+mlflow-ui:
+	cd model-control-plane && uv run --locked mlflow ui --backend-store-uri "sqlite:///$(MLFLOW_DB)" --default-artifact-root "file://$(MLFLOW_ARTIFACTS)" --host 127.0.0.1 --port "$(MLFLOW_UI_PORT)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:
