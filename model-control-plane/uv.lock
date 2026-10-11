@@ -1378,6 +1378,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "scikit-learn" },
+    { name = "skops" },
 ]
 
 [package.dev-dependencies]
@@ -1394,6 +1395,7 @@ requires-dist = [
     { name = "pandas", specifier = "==3.0.6" },
     { name = "pyarrow", specifier = "==25.0.1" },
     { name = "scikit-learn", specifier = "==1.9.1" },
+    { name = "skops", specifier = "==0.16.0" },
 ]
 
 [package.metadata.requires-dev]

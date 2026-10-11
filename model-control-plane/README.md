@@ -6,7 +6,9 @@ Phase 13 adds one local pandas/sklearn logistic baseline over those verified sna
 Phase 14 can consume independent delayed synthetic labels after the Scala-generated
 transaction plan has passed through the real Kafka/Spark/Delta feature lineage.
 Phase 15 indexes already verified immutable training runs in local SQLite-backed MLflow.
-It does not create a deployable model or serving endpoint.
+Phase 16 reconstructs the fixed Pipeline from those authoritative artifacts, verifies
+archived prediction equivalence, and publishes a technically verified offline-only
+MLflow/skops candidate. There is no production approval or serving endpoint.
 
 From the repository root:
 
@@ -42,6 +44,19 @@ make compare-tracked-runs
 `make mlflow-ui` is an optional localhost-only inspection UI. See the
 [tracking contract](../docs/architecture/mlflow-experiment-tracking.md) for
 source validation, explicit corpus linkage and retry/conflict behavior.
+
+Reconstruct an offline candidate from an existing run; the optional MLflow ID is
+checked read-only and does not create a tracking run:
+
+```sh
+make build-model-candidate BASELINE_RUN_PATH=/absolute/path/to/<training_run_id> MLFLOW_RUN_ID=<provider-run-id>
+make inspect-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id>
+make score-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id> MODEL_INPUT_JSON=/absolute/path/to/one-row.json
+```
+
+The score JSON has exactly 11 feature keys, with exact monetary Decimals encoded as
+strings. The output is an uncalibrated offline FRAUD probability estimate, not a
+decision. See the [candidate contract](../docs/architecture/model-candidate-artifact.md).
 
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise

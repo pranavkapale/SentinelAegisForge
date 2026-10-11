@@ -58,6 +58,9 @@ MLFLOW_VALIDATED_PATH ?=
 MLFLOW_DEDUPLICATED_PATH ?=
 MLFLOW_ROLLING_PATH ?=
 MLFLOW_STATISTICAL_PATH ?=
+MODEL_CANDIDATE_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/model-candidates
+MODEL_CANDIDATE_PATH ?=
+MODEL_INPUT_JSON ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -209,6 +212,19 @@ compare-tracked-runs:
 
 mlflow-ui:
 	cd model-control-plane && uv run --locked mlflow ui --backend-store-uri "sqlite:///$(MLFLOW_DB)" --default-artifact-root "file://$(MLFLOW_ARTIFACTS)" --host 127.0.0.1 --port "$(MLFLOW_UI_PORT)"
+
+.PHONY: build-model-candidate inspect-model-candidate score-model-candidate
+build-model-candidate:
+	@test -n "$(BASELINE_RUN_PATH)" || { echo "Supply BASELINE_RUN_PATH; candidate build verifies and reconstructs the existing run."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.candidates.cli build --run "$(BASELINE_RUN_PATH)" --output-root "$(MODEL_CANDIDATE_OUTPUT_ROOT)" $(if $(MLFLOW_RUN_ID),--mlflow-run-id "$(MLFLOW_RUN_ID)",) --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)"
+
+inspect-model-candidate:
+	@test -n "$(MODEL_CANDIDATE_PATH)" || { echo "Supply MODEL_CANDIDATE_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.candidates.cli inspect --candidate "$(MODEL_CANDIDATE_PATH)" --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)"
+
+score-model-candidate:
+	@test -n "$(MODEL_CANDIDATE_PATH)" && test -n "$(MODEL_INPUT_JSON)" || { echo "Supply MODEL_CANDIDATE_PATH and MODEL_INPUT_JSON."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.candidates.cli score --candidate "$(MODEL_CANDIDATE_PATH)" --input-json "$(MODEL_INPUT_JSON)" --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

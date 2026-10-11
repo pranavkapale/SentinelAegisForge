@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, and local MLflow tracking of verified immutable training runs. No deployable model or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, and a technically verified offline model candidate. No production-approved model, serving or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer and local MLflow experiment indexing. Model governance, serving and drift remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing and offline candidate reconstruction/validation. Model governance, serving and drift remain deferred.
 
 ## Current status
 
-The repository is in **Phase 15 — MLflow Experiment Tracking & Reproducible Run Provenance**. The reconciled Phase 14 corpus, Phase 12 snapshot and unchanged Phase 13 training run remain authoritative; a local SQLite-backed MLflow index makes the verified run discoverable and comparable. Its metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no deployable model exists.
+The repository is in **Phase 16 — Reproducible Model Artifact & Offline Candidate Validation**. The reconciled Phase 14 corpus, Phase 12 snapshot and unchanged Phase 13 training run remain authoritative. An offline candidate is reconstructed, compared with every archived validation/test prediction, saved locally in MLflow/skops format, and reloaded for verification. Its metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no model is approved or served.
 
 ## Local development
 
@@ -159,6 +159,15 @@ make compare-tracked-runs
 
 The optional `make mlflow-ui` binds to localhost; headless tracking needs no server. For verified Phase 14 corpus linkage, provide all five explicit corpus/Delta paths described in [MLflow experiment tracking](docs/architecture/mlflow-experiment-tracking.md). No model artifact or promotion is created.
 Use the same lineage arguments on repeat tracking calls; mismatched or omitted provenance fails closed.
+
+Build and inspect a local-only candidate from an already verified training run (optionally check its existing MLflow run read-only):
+
+```sh
+make build-model-candidate BASELINE_RUN_PATH=/absolute/path/to/<training_run_id> MLFLOW_RUN_ID=<provider-run-id>
+make inspect-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id>
+```
+
+`make score-model-candidate` accepts `MODEL_INPUT_JSON` containing exactly the 11 model features; monetary fields are decimal strings. It returns an uncalibrated offline FRAUD-class probability estimate, not an enforcement decision. See the [candidate artifact contract](docs/architecture/model-candidate-artifact.md).
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
