@@ -9,6 +9,8 @@ Phase 15 indexes already verified immutable training runs in local SQLite-backed
 Phase 16 reconstructs the fixed Pipeline from those authoritative artifacts, verifies
 archived prediction equivalence, and publishes a technically verified offline-only
 MLflow/skops candidate. There is no production approval or serving endpoint.
+Phase 17 catalogues verified candidates in the existing SQLite-backed MLflow Registry
+as research-only versions; no champion, promotion or deployment is created.
 
 From the repository root:
 
@@ -57,6 +59,17 @@ make score-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id>
 The score JSON has exactly 11 feature keys, with exact monetary Decimals encoded as
 strings. The output is an uncalibrated offline FRAUD probability estimate, not a
 decision. See the [candidate contract](../docs/architecture/model-candidate-artifact.md).
+
+Register and inspect an explicit research-only version without fitting again:
+
+```sh
+make register-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id>
+make inspect-registered-candidate REGISTERED_MODEL_VERSION=<explicit-version>
+make verify-registered-model-artifact REGISTERED_MODEL_VERSION=<explicit-version>
+```
+
+The Registry references the existing local candidate bytes; it does not make an
+independent artifact backup. See [Registry governance](../docs/architecture/model-registry-governance.md).
 
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise

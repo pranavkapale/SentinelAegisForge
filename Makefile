@@ -61,6 +61,10 @@ MLFLOW_STATISTICAL_PATH ?=
 MODEL_CANDIDATE_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/model-candidates
 MODEL_CANDIDATE_PATH ?=
 MODEL_INPUT_JSON ?=
+REGISTERED_MODEL_NAME ?= sentinelaegisforge-offline-fraud-logistic
+REGISTERED_MODEL_VERSION ?=
+REGISTERED_MODEL_VERSIONS ?=
+REGISTRATION_RECEIPTS ?= $(CURDIR)/.local/mlflow/registration-receipts
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -225,6 +229,25 @@ inspect-model-candidate:
 score-model-candidate:
 	@test -n "$(MODEL_CANDIDATE_PATH)" && test -n "$(MODEL_INPUT_JSON)" || { echo "Supply MODEL_CANDIDATE_PATH and MODEL_INPUT_JSON."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.candidates.cli score --candidate "$(MODEL_CANDIDATE_PATH)" --input-json "$(MODEL_INPUT_JSON)" --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)"
+
+.PHONY: register-model-candidate inspect-registered-candidate compare-registered-candidates verify-registered-model-artifact
+REGISTRY_ARGS = --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" --model-name "$(REGISTERED_MODEL_NAME)" --receipts "$(REGISTRATION_RECEIPTS)"
+
+register-model-candidate:
+	@test -n "$(MODEL_CANDIDATE_PATH)" || { echo "Supply MODEL_CANDIDATE_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.registry.cli register --candidate "$(MODEL_CANDIDATE_PATH)" $(REGISTRY_ARGS)
+
+inspect-registered-candidate:
+	@test -n "$(REGISTERED_MODEL_VERSION)" || { echo "Supply REGISTERED_MODEL_VERSION explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.registry.cli inspect --version "$(REGISTERED_MODEL_VERSION)" $(REGISTRY_ARGS)
+
+compare-registered-candidates:
+	@test -n "$(REGISTERED_MODEL_VERSIONS)" || { echo "Supply REGISTERED_MODEL_VERSIONS explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.registry.cli compare --versions $(REGISTERED_MODEL_VERSIONS) $(REGISTRY_ARGS)
+
+verify-registered-model-artifact:
+	@test -n "$(REGISTERED_MODEL_VERSION)" || { echo "Supply REGISTERED_MODEL_VERSION explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.registry.cli verify-artifact --version "$(REGISTERED_MODEL_VERSION)" $(REGISTRY_ARGS)
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, and a technically verified offline model candidate. No production-approved model, serving or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate and research-only Registry cataloging. No production-approved model, serving or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing and offline candidate reconstruction/validation. Model governance, serving and drift remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation and research-only Registry governance. Promotion, serving and drift remain deferred.
 
 ## Current status
 
-The repository is in **Phase 16 — Reproducible Model Artifact & Offline Candidate Validation**. The reconciled Phase 14 corpus, Phase 12 snapshot and unchanged Phase 13 training run remain authoritative. An offline candidate is reconstructed, compared with every archived validation/test prediction, saved locally in MLflow/skops format, and reloaded for verification. Its metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no model is approved or served.
+The repository is in **Phase 17 — Model Registry & Candidate Governance**. The verified Phase 16 candidate is cataloged in the local MLflow Registry as `REGISTERED_RESEARCH_ONLY`; its source remains the local Phase 16 artifact, and registration is not promotion. Its metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no model is approved or served.
 
 ## Local development
 
@@ -168,6 +168,16 @@ make inspect-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_i
 ```
 
 `make score-model-candidate` accepts `MODEL_INPUT_JSON` containing exactly the 11 model features; monetary fields are decimal strings. It returns an uncalibrated offline FRAUD-class probability estimate, not an enforcement decision. See the [candidate artifact contract](docs/architecture/model-candidate-artifact.md).
+
+Catalog a verified local candidate without retraining or promotion:
+
+```sh
+make register-model-candidate MODEL_CANDIDATE_PATH=/absolute/path/to/<candidate_id>
+make inspect-registered-candidate REGISTERED_MODEL_VERSION=<explicit-version>
+make verify-registered-model-artifact REGISTERED_MODEL_VERSION=<explicit-version>
+```
+
+`make compare-registered-candidates REGISTERED_MODEL_VERSIONS="1 2"` is read-only and does not select a winner. The [Registry governance contract](docs/architecture/model-registry-governance.md) explains local source retention, research-only eligibility and incomplete-registration handling.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 
