@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate and research-only Registry cataloging. No production-approved model, serving or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate, research-only Registry cataloging and an evidence-based promotion-readiness assessment. No production-approved model, serving or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation and research-only Registry governance. Promotion, serving and drift remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation, research-only Registry governance and immutable validation-evidence dossiers. Promotion, serving and drift remain deferred.
 
 ## Current status
 
-The repository is in **Phase 17 — Model Registry & Candidate Governance**. The verified Phase 16 candidate is cataloged in the local MLflow Registry as `REGISTERED_RESEARCH_ONLY`; its source remains the local Phase 16 artifact, and registration is not promotion. Its metrics are synthetic-only pipeline evidence, not production fraud-performance evidence; no model is approved or served.
+The repository is in **Phase 18 — Model Validation Evidence & Promotion Readiness Assessment**. An exact research-only Registry version can be assessed against a versioned, fail-closed evidence policy. Technical integrity and lineage may be verified, but synthetic-only metrics do not establish production fraud performance; the current outcome is `NOT_ELIGIBLE_FOR_PROMOTION`. No model is approved or served.
 
 ## Local development
 
@@ -178,6 +178,15 @@ make verify-registered-model-artifact REGISTERED_MODEL_VERSION=<explicit-version
 ```
 
 `make compare-registered-candidates REGISTERED_MODEL_VERSIONS="1 2"` is read-only and does not select a winner. The [Registry governance contract](docs/architecture/model-registry-governance.md) explains local source retention, research-only eligibility and incomplete-registration handling.
+
+Assess an exact registered version without retraining or Registry mutation:
+
+```sh
+make assess-registered-model REGISTERED_MODEL_VERSION=1
+make inspect-model-assessment MODEL_ASSESSMENT_PATH=/absolute/path/to/<assessment_id>
+```
+
+`make compare-model-assessments MODEL_ASSESSMENT_PATHS="<path1> <path2>"` is read-only and never selects a model. See [model validation governance](docs/architecture/model-validation-governance.md) for the immutable dossier and synthetic-only limitations.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

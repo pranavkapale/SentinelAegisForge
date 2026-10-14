@@ -11,6 +11,8 @@ archived prediction equivalence, and publishes a technically verified offline-on
 MLflow/skops candidate. There is no production approval or serving endpoint.
 Phase 17 catalogues verified candidates in the existing SQLite-backed MLflow Registry
 as research-only versions; no champion, promotion or deployment is created.
+Phase 18 creates immutable evidence dossiers for exact research-only Registry versions;
+synthetic results leave promotion readiness `NOT_ELIGIBLE_FOR_PROMOTION`.
 
 From the repository root:
 
@@ -70,6 +72,15 @@ make verify-registered-model-artifact REGISTERED_MODEL_VERSION=<explicit-version
 
 The Registry references the existing local candidate bytes; it does not make an
 independent artifact backup. See [Registry governance](../docs/architecture/model-registry-governance.md).
+
+Assess, inspect or compare immutable validation evidence without Registry mutation:
+
+```sh
+make assess-registered-model REGISTERED_MODEL_VERSION=<explicit-version>
+make inspect-model-assessment MODEL_ASSESSMENT_PATH=/absolute/path/to/<assessment_id>
+```
+
+See [model validation governance](../docs/architecture/model-validation-governance.md).
 
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise

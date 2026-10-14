@@ -65,6 +65,9 @@ REGISTERED_MODEL_NAME ?= sentinelaegisforge-offline-fraud-logistic
 REGISTERED_MODEL_VERSION ?=
 REGISTERED_MODEL_VERSIONS ?=
 REGISTRATION_RECEIPTS ?= $(CURDIR)/.local/mlflow/registration-receipts
+MODEL_VALIDATION_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/model-validations
+MODEL_ASSESSMENT_PATH ?=
+MODEL_ASSESSMENT_PATHS ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -248,6 +251,19 @@ compare-registered-candidates:
 verify-registered-model-artifact:
 	@test -n "$(REGISTERED_MODEL_VERSION)" || { echo "Supply REGISTERED_MODEL_VERSION explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.registry.cli verify-artifact --version "$(REGISTERED_MODEL_VERSION)" $(REGISTRY_ARGS)
+
+.PHONY: assess-registered-model inspect-model-assessment compare-model-assessments
+assess-registered-model:
+	@test -n "$(REGISTERED_MODEL_VERSION)" || { echo "Supply REGISTERED_MODEL_VERSION explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.validation.cli assess --version "$(REGISTERED_MODEL_VERSION)" --output-root "$(MODEL_VALIDATION_OUTPUT_ROOT)" $(REGISTRY_ARGS)
+
+inspect-model-assessment:
+	@test -n "$(MODEL_ASSESSMENT_PATH)" || { echo "Supply MODEL_ASSESSMENT_PATH explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.validation.cli inspect --assessment "$(MODEL_ASSESSMENT_PATH)" $(REGISTRY_ARGS)
+
+compare-model-assessments:
+	@test -n "$(MODEL_ASSESSMENT_PATHS)" || { echo "Supply MODEL_ASSESSMENT_PATHS explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.validation.cli compare --assessments $(MODEL_ASSESSMENT_PATHS) $(REGISTRY_ARGS)
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:
