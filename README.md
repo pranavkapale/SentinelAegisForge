@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate, research-only Registry cataloging and an evidence-based promotion-readiness assessment. No production-approved model, serving or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate, research-only Registry cataloging, validation-evidence dossiers and offline delayed-outcome monitoring. No production-approved model, serving or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation, research-only Registry governance and immutable validation-evidence dossiers. Promotion, serving and drift remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation, research-only Registry governance, validation-evidence dossiers and immutable offline prediction/outcome snapshots. Promotion, serving and drift remain deferred.
 
 ## Current status
 
-The repository is in **Phase 18 — Model Validation Evidence & Promotion Readiness Assessment**. An exact research-only Registry version can be assessed against a versioned, fail-closed evidence policy. Technical integrity and lineage may be verified, but synthetic-only metrics do not establish production fraud performance; the current outcome is `NOT_ELIGIBLE_FOR_PROMOTION`. No model is approved or served.
+The repository is in **Phase 19 — Offline Prediction Monitoring & Delayed-Outcome Evaluation**. An exact research-only Registry version can be replayed over a fixed post-training Delta window into a label-free ledger; independent synthetic labels are then evaluated at explicit cutoffs without rescoring. These are offline historical-replay diagnostics, not historical online availability or production monitoring. Synthetic-only metrics do not establish production fraud performance, and the Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`. No model is approved or served.
 
 ## Local development
 
@@ -187,6 +187,22 @@ make inspect-model-assessment MODEL_ASSESSMENT_PATH=/absolute/path/to/<assessmen
 ```
 
 `make compare-model-assessments MODEL_ASSESSMENT_PATHS="<path1> <path2>"` is read-only and never selects a model. See [model validation governance](docs/architecture/model-validation-governance.md) for the immutable dossier and synthetic-only limitations.
+
+Replay a fixed corrected feature version, then evaluate independent outcomes at two explicit UTC cutoffs:
+
+```sh
+make build-prediction-ledger REGISTERED_MODEL_VERSION=1 \
+  MONITORING_FEATURE_DELTA_PATH=/absolute/path/to/statistical \
+  MONITORING_SOURCE_VERSION=2 \
+  MONITORING_SCORE_START=2030-01-04T00:00:00Z \
+  MONITORING_SCORE_END=2030-01-10T00:00:00Z
+make evaluate-delayed-outcomes \
+  MONITORING_LEDGER_PATH=/absolute/path/to/<ledger_id> \
+  MONITORING_CORPUS_PATH=/absolute/path/to/<verified_corpus_id> \
+  MONITORING_EVALUATION_AS_OF=2030-01-20T00:00:00Z
+```
+
+`make inspect-prediction-ledger`, `make inspect-monitoring-snapshot` and `make compare-monitoring-snapshots` are read-only. See [offline delayed-outcome monitoring](docs/architecture/offline-delayed-outcome-monitoring.md) for scope and denominator semantics. These operations do not train, serve or promote a model.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

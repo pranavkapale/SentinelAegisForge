@@ -68,6 +68,17 @@ REGISTRATION_RECEIPTS ?= $(CURDIR)/.local/mlflow/registration-receipts
 MODEL_VALIDATION_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/model-validations
 MODEL_ASSESSMENT_PATH ?=
 MODEL_ASSESSMENT_PATHS ?=
+MONITORING_FEATURE_DELTA_PATH ?=
+MONITORING_SOURCE_VERSION ?=
+MONITORING_SCORE_START ?=
+MONITORING_SCORE_END ?=
+MONITORING_LEDGER_ROOT ?= $(CURDIR)/.local/ml/prediction-ledgers
+MONITORING_LEDGER_PATH ?=
+MONITORING_CORPUS_PATH ?=
+MONITORING_EVALUATION_AS_OF ?=
+MONITORING_SNAPSHOT_ROOT ?= $(CURDIR)/.local/ml/monitoring-snapshots
+MONITORING_SNAPSHOT_PATH ?=
+MONITORING_OTHER_SNAPSHOT_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -264,6 +275,27 @@ inspect-model-assessment:
 compare-model-assessments:
 	@test -n "$(MODEL_ASSESSMENT_PATHS)" || { echo "Supply MODEL_ASSESSMENT_PATHS explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.validation.cli compare --assessments $(MODEL_ASSESSMENT_PATHS) $(REGISTRY_ARGS)
+
+.PHONY: build-prediction-ledger inspect-prediction-ledger evaluate-delayed-outcomes inspect-monitoring-snapshot compare-monitoring-snapshots
+build-prediction-ledger:
+	@test -n "$(REGISTERED_MODEL_VERSION)" && test -n "$(MONITORING_FEATURE_DELTA_PATH)" && test -n "$(MONITORING_SOURCE_VERSION)" && test -n "$(MONITORING_SCORE_START)" && test -n "$(MONITORING_SCORE_END)" || { echo "Supply exact Registry version, Delta path/version and UTC scoring window."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli build-prediction-ledger --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" --model-name "$(REGISTERED_MODEL_NAME)" --receipts "$(REGISTRATION_RECEIPTS)" --model-version "$(REGISTERED_MODEL_VERSION)" --features-delta "$(MONITORING_FEATURE_DELTA_PATH)" --source-version "$(MONITORING_SOURCE_VERSION)" --score-start "$(MONITORING_SCORE_START)" --score-end "$(MONITORING_SCORE_END)" --output-root "$(MONITORING_LEDGER_ROOT)"
+
+inspect-prediction-ledger:
+	@test -n "$(MONITORING_LEDGER_PATH)" || { echo "Supply MONITORING_LEDGER_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli inspect-prediction-ledger --ledger "$(MONITORING_LEDGER_PATH)"
+
+evaluate-delayed-outcomes:
+	@test -n "$(MONITORING_LEDGER_PATH)" && test -n "$(MONITORING_CORPUS_PATH)" && test -n "$(MONITORING_EVALUATION_AS_OF)" || { echo "Supply ledger, verified corpus and explicit UTC evaluation cutoff."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli evaluate-delayed-outcomes --ledger "$(MONITORING_LEDGER_PATH)" --corpus "$(MONITORING_CORPUS_PATH)" --evaluation-as-of "$(MONITORING_EVALUATION_AS_OF)" --output-root "$(MONITORING_SNAPSHOT_ROOT)"
+
+inspect-monitoring-snapshot:
+	@test -n "$(MONITORING_SNAPSHOT_PATH)" || { echo "Supply MONITORING_SNAPSHOT_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli inspect-monitoring-snapshot --snapshot "$(MONITORING_SNAPSHOT_PATH)"
+
+compare-monitoring-snapshots:
+	@test -n "$(MONITORING_SNAPSHOT_PATH)" && test -n "$(MONITORING_OTHER_SNAPSHOT_PATH)" || { echo "Supply both monitoring snapshot paths."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli compare-monitoring-snapshots --first "$(MONITORING_SNAPSHOT_PATH)" --second "$(MONITORING_OTHER_SNAPSHOT_PATH)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

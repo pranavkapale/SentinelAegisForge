@@ -13,6 +13,9 @@ Phase 17 catalogues verified candidates in the existing SQLite-backed MLflow Reg
 as research-only versions; no champion, promotion or deployment is created.
 Phase 18 creates immutable evidence dossiers for exact research-only Registry versions;
 synthetic results leave promotion readiness `NOT_ELIGIBLE_FOR_PROMOTION`.
+Phase 19 freezes label-free offline predictions from a fixed corrected Delta version,
+then evaluates independent synthetic outcomes at explicit observation cutoffs. It does
+not rescore on label revision or establish historical online model availability.
 
 From the repository root:
 
@@ -81,6 +84,12 @@ make inspect-model-assessment MODEL_ASSESSMENT_PATH=/absolute/path/to/<assessmen
 ```
 
 See [model validation governance](../docs/architecture/model-validation-governance.md).
+
+Use `make build-prediction-ledger` with an exact Registry version, Delta path/version
+and UTC scoring window. Then use `make evaluate-delayed-outcomes` with that ledger,
+the verified scenario corpus and an explicit UTC cutoff. `make inspect-prediction-ledger`,
+`make inspect-monitoring-snapshot` and `make compare-monitoring-snapshots` are read-only.
+See [offline delayed-outcome monitoring](../docs/architecture/offline-delayed-outcome-monitoring.md).
 
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
