@@ -8,6 +8,12 @@ from sentinelaegisforge_control_plane.datasets.labels import parse_utc_timestamp
 from sentinelaegisforge_control_plane.registry.run import RegistryConfig
 from sentinelaegisforge_control_plane.tracking.run import TrackingConfig
 
+from .drift import (
+    DEFAULT_DRIFT_ROOT,
+    build_drift_snapshot,
+    compare_drift_snapshots,
+    inspect_drift_snapshot,
+)
 from .ledger import DEFAULT_LEDGER_ROOT, build_ledger, inspect_ledger
 from .outcomes import (
     DEFAULT_MONITORING_ROOT,
@@ -46,6 +52,22 @@ def main() -> None:
     compare = commands.add_parser("compare-monitoring-snapshots")
     compare.add_argument("--first", type=Path, required=True)
     compare.add_argument("--second", type=Path, required=True)
+    drift = commands.add_parser("build-drift-snapshot")
+    drift.add_argument("--ledger", type=Path, required=True)
+    drift.add_argument("--reference-start", required=True)
+    drift.add_argument("--reference-end", required=True)
+    drift.add_argument("--comparison-start", required=True)
+    drift.add_argument("--comparison-end", required=True)
+    drift.add_argument("--minimum-rows", type=int, default=30)
+    drift.add_argument("--minimum-non-null", type=int, default=5)
+    drift.add_argument("--psi-bins", type=int, default=10)
+    drift.add_argument("--psi-smoothing", type=float, default=0.5)
+    drift.add_argument("--output-root", type=Path, default=DEFAULT_DRIFT_ROOT)
+    inspect_drift = commands.add_parser("inspect-drift-snapshot")
+    inspect_drift.add_argument("--snapshot", type=Path, required=True)
+    compare_drift = commands.add_parser("compare-drift-snapshots")
+    compare_drift.add_argument("--first", type=Path, required=True)
+    compare_drift.add_argument("--second", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == "build-prediction-ledger":
         tracking = TrackingConfig(
@@ -81,6 +103,27 @@ def main() -> None:
     elif arguments.command == "inspect-monitoring-snapshot":
         print((arguments.snapshot / "report.txt").read_text())
         print(json.dumps(inspect_monitoring_snapshot(arguments.snapshot), indent=2))
+    elif arguments.command == "build-drift-snapshot":
+        result = build_drift_snapshot(
+            arguments.ledger,
+            parse_utc_timestamp(arguments.reference_start),
+            parse_utc_timestamp(arguments.reference_end),
+            parse_utc_timestamp(arguments.comparison_start),
+            parse_utc_timestamp(arguments.comparison_end),
+            arguments.output_root,
+            minimum_rows=arguments.minimum_rows,
+            minimum_non_null=arguments.minimum_non_null,
+            bins=arguments.psi_bins,
+            smoothing=arguments.psi_smoothing,
+        )
+        print(
+            json.dumps({"path": str(result), "manifest": inspect_drift_snapshot(result)}, indent=2)
+        )
+    elif arguments.command == "inspect-drift-snapshot":
+        print((arguments.snapshot / "drift_report.md").read_text())
+        print(json.dumps(inspect_drift_snapshot(arguments.snapshot), indent=2))
+    elif arguments.command == "compare-drift-snapshots":
+        print(json.dumps(compare_drift_snapshots(arguments.first, arguments.second), indent=2))
     else:
         print(json.dumps(compare_snapshots(arguments.first, arguments.second), indent=2))
 

@@ -79,6 +79,18 @@ MONITORING_EVALUATION_AS_OF ?=
 MONITORING_SNAPSHOT_ROOT ?= $(CURDIR)/.local/ml/monitoring-snapshots
 MONITORING_SNAPSHOT_PATH ?=
 MONITORING_OTHER_SNAPSHOT_PATH ?=
+DRIFT_LEDGER_PATH ?=
+DRIFT_REFERENCE_START ?=
+DRIFT_REFERENCE_END ?=
+DRIFT_COMPARISON_START ?=
+DRIFT_COMPARISON_END ?=
+DRIFT_MINIMUM_ROWS ?= 30
+DRIFT_MINIMUM_NON_NULL ?= 5
+DRIFT_PSI_BINS ?= 10
+DRIFT_PSI_SMOOTHING ?= 0.5
+DRIFT_SNAPSHOT_ROOT ?= $(CURDIR)/.local/ml/drift-snapshots
+DRIFT_SNAPSHOT_PATH ?=
+DRIFT_OTHER_SNAPSHOT_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -296,6 +308,19 @@ inspect-monitoring-snapshot:
 compare-monitoring-snapshots:
 	@test -n "$(MONITORING_SNAPSHOT_PATH)" && test -n "$(MONITORING_OTHER_SNAPSHOT_PATH)" || { echo "Supply both monitoring snapshot paths."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli compare-monitoring-snapshots --first "$(MONITORING_SNAPSHOT_PATH)" --second "$(MONITORING_OTHER_SNAPSHOT_PATH)"
+
+.PHONY: build-drift-snapshot inspect-drift-snapshot compare-drift-snapshots
+build-drift-snapshot:
+	@test -n "$(DRIFT_LEDGER_PATH)" && test -n "$(DRIFT_REFERENCE_START)" && test -n "$(DRIFT_REFERENCE_END)" && test -n "$(DRIFT_COMPARISON_START)" && test -n "$(DRIFT_COMPARISON_END)" || { echo "Supply a ledger and all four explicit UTC drift boundaries."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli build-drift-snapshot --ledger "$(DRIFT_LEDGER_PATH)" --reference-start "$(DRIFT_REFERENCE_START)" --reference-end "$(DRIFT_REFERENCE_END)" --comparison-start "$(DRIFT_COMPARISON_START)" --comparison-end "$(DRIFT_COMPARISON_END)" --minimum-rows "$(DRIFT_MINIMUM_ROWS)" --minimum-non-null "$(DRIFT_MINIMUM_NON_NULL)" --psi-bins "$(DRIFT_PSI_BINS)" --psi-smoothing "$(DRIFT_PSI_SMOOTHING)" --output-root "$(DRIFT_SNAPSHOT_ROOT)"
+
+inspect-drift-snapshot:
+	@test -n "$(DRIFT_SNAPSHOT_PATH)" || { echo "Supply DRIFT_SNAPSHOT_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli inspect-drift-snapshot --snapshot "$(DRIFT_SNAPSHOT_PATH)"
+
+compare-drift-snapshots:
+	@test -n "$(DRIFT_SNAPSHOT_PATH)" && test -n "$(DRIFT_OTHER_SNAPSHOT_PATH)" || { echo "Supply both drift snapshot paths."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli compare-drift-snapshots --first "$(DRIFT_SNAPSHOT_PATH)" --second "$(DRIFT_OTHER_SNAPSHOT_PATH)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

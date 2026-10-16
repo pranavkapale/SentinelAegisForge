@@ -91,6 +91,8 @@ the verified scenario corpus and an explicit UTC cutoff. `make inspect-predictio
 `make inspect-monitoring-snapshot` and `make compare-monitoring-snapshots` are read-only.
 See [offline delayed-outcome monitoring](../docs/architecture/offline-delayed-outcome-monitoring.md).
 
+Phase 20 compares two non-overlapping UTC windows within one verified prediction ledger, measuring the unchanged 11 model inputs and frozen scores without labels or inference. Use the root `make build-drift-snapshot`, `make inspect-drift-snapshot` and `make compare-drift-snapshots` targets with explicit paths/windows. See [offline distribution monitoring](../docs/architecture/offline-distribution-monitoring.md). This is synthetic-only descriptive evidence, not an alert or production-performance claim.
+
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
 the latest version is captured once and recorded. Output defaults to the root's ignored
