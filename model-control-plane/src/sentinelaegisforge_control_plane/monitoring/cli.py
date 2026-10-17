@@ -6,13 +6,18 @@ from pathlib import Path
 
 from sentinelaegisforge_control_plane.datasets.labels import parse_utc_timestamp
 from sentinelaegisforge_control_plane.registry.run import RegistryConfig
-from sentinelaegisforge_control_plane.tracking.run import TrackingConfig
+from sentinelaegisforge_control_plane.tracking.run import REPOSITORY_ROOT, TrackingConfig
 
 from .drift import (
     DEFAULT_DRIFT_ROOT,
     build_drift_snapshot,
     compare_drift_snapshots,
     inspect_drift_snapshot,
+)
+from .investigation import (
+    DEFAULT_INVESTIGATION_ROOT,
+    build_investigation,
+    inspect_investigation,
 )
 from .ledger import DEFAULT_LEDGER_ROOT, build_ledger, inspect_ledger
 from .outcomes import (
@@ -68,6 +73,31 @@ def main() -> None:
     compare_drift = commands.add_parser("compare-drift-snapshots")
     compare_drift.add_argument("--first", type=Path, required=True)
     compare_drift.add_argument("--second", type=Path, required=True)
+    investigate = commands.add_parser("build-monitoring-investigation")
+    investigate.add_argument("--drift", type=Path, required=True)
+    investigate.add_argument("--ledger", type=Path)
+    investigate.add_argument("--earlier", type=Path)
+    investigate.add_argument("--later", type=Path)
+    investigate.add_argument("--dossier", type=Path)
+    investigate.add_argument("--output-root", type=Path, default=DEFAULT_INVESTIGATION_ROOT)
+    inspect_investigation_command = commands.add_parser("inspect-monitoring-investigation")
+    inspect_investigation_command.add_argument("--packet", type=Path, required=True)
+    for command in (investigate, inspect_investigation_command):
+        command.add_argument(
+            "--database", type=Path, default=REPOSITORY_ROOT / ".local/mlflow/tracking.db"
+        )
+        command.add_argument(
+            "--artifacts",
+            type=Path,
+            default=REPOSITORY_ROOT / ".local/mlflow/artifacts",
+        )
+        command.add_argument("--experiment", default="sentinelaegisforge-synthetic-fraud-baseline")
+        command.add_argument("--model-name", default="sentinelaegisforge-offline-fraud-logistic")
+        command.add_argument(
+            "--receipts",
+            type=Path,
+            default=REPOSITORY_ROOT / ".local/mlflow/registration-receipts",
+        )
     arguments = parser.parse_args()
     if arguments.command == "build-prediction-ledger":
         tracking = TrackingConfig(
@@ -124,6 +154,32 @@ def main() -> None:
         print(json.dumps(inspect_drift_snapshot(arguments.snapshot), indent=2))
     elif arguments.command == "compare-drift-snapshots":
         print(json.dumps(compare_drift_snapshots(arguments.first, arguments.second), indent=2))
+    elif arguments.command in (
+        "build-monitoring-investigation",
+        "inspect-monitoring-investigation",
+    ):
+        registry = RegistryConfig(
+            TrackingConfig(
+                arguments.database.resolve(), arguments.artifacts.resolve(), arguments.experiment
+            ),
+            arguments.model_name,
+            arguments.receipts.resolve(),
+        )
+        if arguments.command == "build-monitoring-investigation":
+            result = build_investigation(
+                arguments.drift,
+                arguments.output_root,
+                ledger_path=arguments.ledger,
+                earlier_path=arguments.earlier,
+                later_path=arguments.later,
+                dossier_path=arguments.dossier,
+                registry=registry if arguments.dossier else None,
+            )
+        else:
+            result = arguments.packet
+        manifest = inspect_investigation(result, registry)
+        print((result / "investigation_report.md").read_text())
+        print(json.dumps({"path": str(result), "manifest": manifest}, indent=2))
     else:
         print(json.dumps(compare_snapshots(arguments.first, arguments.second), indent=2))
 

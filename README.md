@@ -1,15 +1,15 @@
 # SentinelAegisForge
 
-SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate, research-only Registry cataloging, validation-evidence dossiers, delayed-outcome monitoring and label-free offline distribution comparison. No production-approved model, serving or enforcement behavior is implemented.
+SentinelAegisForge is intended to become an enterprise-style platform for real-time fraud intelligence and model lifecycle management. It provides deterministic advisory risk decisions, reproducible offline feature/label snapshots, a local temporal logistic-regression baseline, a controlled synthetic corpus for full-path validation, local MLflow tracking, a technically verified offline model candidate, research-only Registry cataloging, validation-evidence dossiers, delayed-outcome monitoring, label-free offline distribution comparison and evidence-linked manual investigation packets. No production-approved model, serving or enforcement behavior is implemented.
 
 ## Modules
 
 - **Module A — `streaming-engine`:** an independently buildable Scala/JVM module with a validated transaction contract, deterministic simulator, bounded Kafka producer, Spark ingestion, local audit and deduplicated Delta tables, an independent customer activity lifecycle, rolling and statistical feature queries, and stateless explainable CLEAR/REVIEW decisions.
-- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation, research-only Registry governance, validation-evidence dossiers, immutable offline prediction/outcome snapshots and descriptive feature/prediction distribution reports. Promotion, serving and automated drift alerts remain deferred.
+- **Module B — `model-control-plane`:** an independently buildable Python module with fixed-version Delta/Arrow feature reads, immutable delayed-label snapshots, an offline baseline trainer, local MLflow experiment indexing, offline candidate reconstruction/validation, research-only Registry governance, validation-evidence dossiers, immutable offline prediction/outcome snapshots, descriptive feature/prediction distribution reports and manual investigation packets. Promotion, serving and automated drift alerts remain deferred.
 
 ## Current status
 
-The repository is in **Phase 20 — Offline Feature & Prediction Distribution Monitoring**. Two explicit chronological cohorts from the same verified Phase 19 ledger can be compared across all 11 model inputs and frozen scores, without labels or rescoring. The measurements are descriptive synthetic historical-replay diagnostics, not production drift alerts or proof of changed fraud quality. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or served.
+The repository is in **Phase 21 — Offline Operational Monitoring Triage**. Verified Phase 20 distribution evidence can be combined with compatible Phase 19 delayed-outcome snapshots and the Phase 18 dossier in an immutable, evidence-linked investigation packet and manual runbook. These are descriptive synthetic historical-replay diagnostics, not production drift alerts or proof of changed fraud quality. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or served.
 
 ## Local development
 
@@ -205,6 +205,8 @@ make evaluate-delayed-outcomes \
 `make inspect-prediction-ledger`, `make inspect-monitoring-snapshot` and `make compare-monitoring-snapshots` are read-only. See [offline delayed-outcome monitoring](docs/architecture/offline-delayed-outcome-monitoring.md) for scope and denominator semantics. These operations do not train, serve or promote a model.
 
 Compare two label-free windows from one existing ledger with `make build-drift-snapshot DRIFT_LEDGER_PATH=<absolute-ledger-path> DRIFT_REFERENCE_START=<UTC> DRIFT_REFERENCE_END=<UTC> DRIFT_COMPARISON_START=<UTC> DRIFT_COMPARISON_END=<UTC>`. `make inspect-drift-snapshot` and `make compare-drift-snapshots` are read-only. See [offline distribution monitoring](docs/architecture/offline-distribution-monitoring.md); no alerts or actions are generated.
+
+Build a manual evidence packet with `make build-monitoring-investigation INVESTIGATION_DRIFT_PATH=<absolute-snapshot>`, optionally adding both Phase 19 T1/T2 paths and the compatible Phase 18 dossier. Inspect it with `make inspect-monitoring-investigation INVESTIGATION_PACKET_PATH=<absolute-packet>`. See [offline monitoring investigation](docs/architecture/offline-monitoring-investigation.md); neither operation rescores a model or triggers an action.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

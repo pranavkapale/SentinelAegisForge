@@ -91,6 +91,13 @@ DRIFT_PSI_SMOOTHING ?= 0.5
 DRIFT_SNAPSHOT_ROOT ?= $(CURDIR)/.local/ml/drift-snapshots
 DRIFT_SNAPSHOT_PATH ?=
 DRIFT_OTHER_SNAPSHOT_PATH ?=
+INVESTIGATION_DRIFT_PATH ?=
+INVESTIGATION_LEDGER_PATH ?=
+INVESTIGATION_EARLIER_PATH ?=
+INVESTIGATION_LATER_PATH ?=
+INVESTIGATION_DOSSIER_PATH ?=
+INVESTIGATION_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/investigations
+INVESTIGATION_PACKET_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -321,6 +328,16 @@ inspect-drift-snapshot:
 compare-drift-snapshots:
 	@test -n "$(DRIFT_SNAPSHOT_PATH)" && test -n "$(DRIFT_OTHER_SNAPSHOT_PATH)" || { echo "Supply both drift snapshot paths."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli compare-drift-snapshots --first "$(DRIFT_SNAPSHOT_PATH)" --second "$(DRIFT_OTHER_SNAPSHOT_PATH)"
+
+.PHONY: build-monitoring-investigation inspect-monitoring-investigation
+INVESTIGATION_REGISTRY_ARGS = --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" --model-name "$(REGISTERED_MODEL_NAME)" --receipts "$(REGISTRATION_RECEIPTS)"
+build-monitoring-investigation:
+	@test -n "$(INVESTIGATION_DRIFT_PATH)" || { echo "Supply INVESTIGATION_DRIFT_PATH explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli build-monitoring-investigation --drift "$(INVESTIGATION_DRIFT_PATH)" $(if $(INVESTIGATION_LEDGER_PATH),--ledger "$(INVESTIGATION_LEDGER_PATH)",) $(if $(INVESTIGATION_EARLIER_PATH),--earlier "$(INVESTIGATION_EARLIER_PATH)",) $(if $(INVESTIGATION_LATER_PATH),--later "$(INVESTIGATION_LATER_PATH)",) $(if $(INVESTIGATION_DOSSIER_PATH),--dossier "$(INVESTIGATION_DOSSIER_PATH)",) --output-root "$(INVESTIGATION_OUTPUT_ROOT)" $(INVESTIGATION_REGISTRY_ARGS)
+
+inspect-monitoring-investigation:
+	@test -n "$(INVESTIGATION_PACKET_PATH)" || { echo "Supply INVESTIGATION_PACKET_PATH explicitly."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli inspect-monitoring-investigation --packet "$(INVESTIGATION_PACKET_PATH)" $(INVESTIGATION_REGISTRY_ARGS)
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:
