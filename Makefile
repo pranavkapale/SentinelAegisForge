@@ -98,6 +98,18 @@ INVESTIGATION_LATER_PATH ?=
 INVESTIGATION_DOSSIER_PATH ?=
 INVESTIGATION_OUTPUT_ROOT ?= $(CURDIR)/.local/ml/investigations
 INVESTIGATION_PACKET_PATH ?=
+FEEDBACK_BATCH_PATH ?=
+FEEDBACK_SOURCE_DELTA_PATH ?=
+FEEDBACK_SOURCE_DELTA_VERSION ?=
+FEEDBACK_BASE_LEDGER_PATH ?=
+FEEDBACK_LEDGER_ROOT ?= $(CURDIR)/.local/ml/outcome-feedback
+FEEDBACK_LEDGER_PATH ?=
+FEEDBACK_AS_OF ?=
+FEEDBACK_PREDICTION_LEDGER_PATH ?=
+FEEDBACK_MONITORING_ROOT ?= $(CURDIR)/.local/ml/feedback-monitoring-v2
+FEEDBACK_MONITORING_PATH ?=
+FEEDBACK_FIXTURE_ROOT ?= $(CURDIR)/.local/ml/feedback-fixtures
+FEEDBACK_FIXTURE_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -338,6 +350,35 @@ build-monitoring-investigation:
 inspect-monitoring-investigation:
 	@test -n "$(INVESTIGATION_PACKET_PATH)" || { echo "Supply INVESTIGATION_PACKET_PATH explicitly."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.monitoring.cli inspect-monitoring-investigation --packet "$(INVESTIGATION_PACKET_PATH)" $(INVESTIGATION_REGISTRY_ARGS)
+
+.PHONY: generate-local-feedback-fixture inspect-local-feedback-fixture build-feedback-ledger inspect-feedback-ledger resolve-feedback-as-of evaluate-feedback-outcomes inspect-feedback-monitoring
+generate-local-feedback-fixture:
+	@test -n "$(FEEDBACK_PREDICTION_LEDGER_PATH)" || { echo "Supply FEEDBACK_PREDICTION_LEDGER_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli generate-local-feedback-fixture --prediction-ledger "$(FEEDBACK_PREDICTION_LEDGER_PATH)" --output-root "$(FEEDBACK_FIXTURE_ROOT)"
+
+inspect-local-feedback-fixture:
+	@test -n "$(FEEDBACK_FIXTURE_PATH)" || { echo "Supply FEEDBACK_FIXTURE_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli inspect-local-feedback-fixture --fixture "$(FEEDBACK_FIXTURE_PATH)"
+
+build-feedback-ledger:
+	@test -n "$(FEEDBACK_BATCH_PATH)" && test -n "$(FEEDBACK_SOURCE_DELTA_PATH)" && test -n "$(FEEDBACK_SOURCE_DELTA_VERSION)" || { echo "Supply feedback batch and fixed Delta path/version."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli build-feedback-ledger --batch "$(FEEDBACK_BATCH_PATH)" --source-delta "$(FEEDBACK_SOURCE_DELTA_PATH)" --source-version "$(FEEDBACK_SOURCE_DELTA_VERSION)" --output-root "$(FEEDBACK_LEDGER_ROOT)" $(if $(FEEDBACK_BASE_LEDGER_PATH),--base-ledger "$(FEEDBACK_BASE_LEDGER_PATH)",)
+
+inspect-feedback-ledger:
+	@test -n "$(FEEDBACK_LEDGER_PATH)" || { echo "Supply FEEDBACK_LEDGER_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli inspect-feedback-ledger --ledger "$(FEEDBACK_LEDGER_PATH)"
+
+resolve-feedback-as-of:
+	@test -n "$(FEEDBACK_LEDGER_PATH)" && test -n "$(FEEDBACK_AS_OF)" || { echo "Supply FEEDBACK_LEDGER_PATH and FEEDBACK_AS_OF."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli resolve-feedback-as-of --ledger "$(FEEDBACK_LEDGER_PATH)" --as-of "$(FEEDBACK_AS_OF)"
+
+evaluate-feedback-outcomes:
+	@test -n "$(FEEDBACK_PREDICTION_LEDGER_PATH)" && test -n "$(FEEDBACK_LEDGER_PATH)" && test -n "$(FEEDBACK_AS_OF)" || { echo "Supply prediction ledger, feedback ledger and UTC AS_OF."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli evaluate-feedback-outcomes --prediction-ledger "$(FEEDBACK_PREDICTION_LEDGER_PATH)" --feedback-ledger "$(FEEDBACK_LEDGER_PATH)" --evaluation-as-of "$(FEEDBACK_AS_OF)" --output-root "$(FEEDBACK_MONITORING_ROOT)"
+
+inspect-feedback-monitoring:
+	@test -n "$(FEEDBACK_MONITORING_PATH)" || { echo "Supply FEEDBACK_MONITORING_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli inspect-feedback-monitoring --snapshot "$(FEEDBACK_MONITORING_PATH)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

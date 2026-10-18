@@ -95,6 +95,8 @@ Phase 20 compares two non-overlapping UTC windows within one verified prediction
 
 Phase 21 verifies a selected drift snapshot and optionally compatible T1/T2 delayed-outcome snapshots and the Phase 18 dossier, then writes an immutable investigation packet and manual runbook. Use the root `make build-monitoring-investigation` and read-only `make inspect-monitoring-investigation` targets with explicit paths. See [offline monitoring investigation](../docs/architecture/offline-monitoring-investigation.md). It makes no incident, retraining, promotion or deployment decision.
 
+Phase 22 adds a separate source-neutral local feedback envelope, immutable complete provider-case revision ledgers and cumulative-receipt AS_OF resolution. Confirmed states can be evaluated against the same frozen Phase 19 prediction ledger in a new snapshot contract. The local provider-like fixtures are synthetic and do not establish real-world label quality. See [durable outcome feedback](../docs/architecture/durable-outcome-feedback.md) and the root `generate-local-feedback-fixture`, `build-feedback-ledger`, `resolve-feedback-as-of` and `evaluate-feedback-outcomes` targets. Old Phase 12/19 artifacts remain unchanged.
+
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
 the latest version is captured once and recorded. Output defaults to the root's ignored

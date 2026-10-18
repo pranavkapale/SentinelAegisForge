@@ -62,7 +62,12 @@ IDENTITY_FIELDS = (
 )
 
 
-def _metrics(rows: list[dict[str, object]], minimum: dict[str, int]) -> dict[str, object]:
+def _metrics(
+    rows: list[dict[str, object]],
+    minimum: dict[str, int],
+    *,
+    data_origin: str = "synthetic",
+) -> dict[str, object]:
     positives = sum(row["outcome"] == "FRAUD" for row in rows)
     negatives = len(rows) - positives
     base: dict[str, object] = {
@@ -71,7 +76,7 @@ def _metrics(rows: list[dict[str, object]], minimum: dict[str, int]) -> dict[str
         "negatives": negatives,
         "positive_prevalence": positives / len(rows) if rows else None,
         "classification_threshold": 0.5,
-        "data_origin": "synthetic",
+        "data_origin": data_origin,
     }
     reason = None
     if len(rows) < minimum["minimum_rows"]:
