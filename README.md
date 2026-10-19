@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 22 — Durable Outcome Feedback Ingestion**. Strict local provider-like envelopes can be verified into immutable revision histories and resolved at explicit AS_OF cutoffs against the unchanged Phase 19 prediction ledger. These fixtures are synthetic, not authenticated external fraud outcomes. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or served.
+The repository is in **Phase 23 — Controlled Non-Enforcing Shadow Inference**. A bounded local research replay now exercises an exact Registry version against fixed corrected Delta features, records one terminal result per request, and compares scores to the frozen Phase 19 ledger. This is historical synthetic execution, not live serving or proof of online feature availability. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or used for payment enforcement.
 
 ## Local development
 
@@ -209,6 +209,8 @@ Compare two label-free windows from one existing ledger with `make build-drift-s
 Build a manual evidence packet with `make build-monitoring-investigation INVESTIGATION_DRIFT_PATH=<absolute-snapshot>`, optionally adding both Phase 19 T1/T2 paths and the compatible Phase 18 dossier. Inspect it with `make inspect-monitoring-investigation INVESTIGATION_PACKET_PATH=<absolute-packet>`. See [offline monitoring investigation](docs/architecture/offline-monitoring-investigation.md); neither operation rescores a model or triggers an action.
 
 For the separate Phase 22 local feedback path, use `make generate-local-feedback-fixture FEEDBACK_PREDICTION_LEDGER_PATH=<absolute-ledger>` to create two inspectable synthetic JSONL batches from already scored event IDs. `make build-feedback-ledger` requires an explicit batch and fixed corrected Delta path/version; an optional `FEEDBACK_BASE_LEDGER_PATH` builds the next immutable snapshot. `make resolve-feedback-as-of` and `make evaluate-feedback-outcomes` require an explicit UTC cutoff. See [durable outcome feedback](docs/architecture/durable-outcome-feedback.md). These commands never rescore the model or treat pending/retracted cases as LEGIT.
+
+For the non-enforcing Phase 23 replay, use `make build-shadow-replay-plan` with an exact `REGISTERED_MODEL_VERSION`, `SHADOW_SOURCE_DELTA_PATH`, `SHADOW_SOURCE_VERSION`, `SHADOW_START` and `SHADOW_END`. Then use `make inspect-shadow-replay-plan SHADOW_PLAN_PATH=<path>`, `make execute-shadow-replay SHADOW_PLAN_PATH=<path>`, `make inspect-shadow-execution SHADOW_PLAN_PATH=<path> SHADOW_EXECUTION_PATH=<path>` and `make verify-shadow-parity` with those paths plus `SHADOW_REFERENCE_LEDGER_PATH=<Phase-19-ledger>`. See [controlled shadow inference](docs/architecture/controlled-shadow-inference.md). No Kafka or serving process starts.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

@@ -110,6 +110,17 @@ FEEDBACK_MONITORING_ROOT ?= $(CURDIR)/.local/ml/feedback-monitoring-v2
 FEEDBACK_MONITORING_PATH ?=
 FEEDBACK_FIXTURE_ROOT ?= $(CURDIR)/.local/ml/feedback-fixtures
 FEEDBACK_FIXTURE_PATH ?=
+SHADOW_SOURCE_DELTA_PATH ?=
+SHADOW_SOURCE_VERSION ?=
+SHADOW_START ?=
+SHADOW_END ?=
+SHADOW_MAX_REQUESTS ?= 5000
+SHADOW_PLAN_ROOT ?= $(CURDIR)/.local/ml/shadow-replay-plans
+SHADOW_PLAN_PATH ?=
+SHADOW_EXECUTION_ROOT ?= $(CURDIR)/.local/ml/shadow-executions
+SHADOW_EXECUTION_PATH ?=
+SHADOW_REFERENCE_LEDGER_PATH ?=
+SHADOW_PARITY_ROOT ?= $(CURDIR)/.local/ml/shadow-parity
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -379,6 +390,28 @@ evaluate-feedback-outcomes:
 inspect-feedback-monitoring:
 	@test -n "$(FEEDBACK_MONITORING_PATH)" || { echo "Supply FEEDBACK_MONITORING_PATH."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.feedback.cli inspect-feedback-monitoring --snapshot "$(FEEDBACK_MONITORING_PATH)"
+
+.PHONY: build-shadow-replay-plan inspect-shadow-replay-plan execute-shadow-replay inspect-shadow-execution verify-shadow-parity
+SHADOW_REGISTRY_ARGS = --database "$(MLFLOW_DB)" --artifacts "$(MLFLOW_ARTIFACTS)" --experiment "$(MLFLOW_EXPERIMENT)" --model-name "$(REGISTERED_MODEL_NAME)" --receipts "$(REGISTRATION_RECEIPTS)"
+build-shadow-replay-plan:
+	@test -n "$(REGISTERED_MODEL_VERSION)" && test -n "$(SHADOW_SOURCE_DELTA_PATH)" && test -n "$(SHADOW_SOURCE_VERSION)" && test -n "$(SHADOW_START)" && test -n "$(SHADOW_END)" || { echo "Supply exact Registry version, fixed Delta path/version and UTC replay window."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) build-shadow-replay-plan --model-version "$(REGISTERED_MODEL_VERSION)" --source-delta "$(SHADOW_SOURCE_DELTA_PATH)" --source-version "$(SHADOW_SOURCE_VERSION)" --start "$(SHADOW_START)" --end "$(SHADOW_END)" --maximum "$(SHADOW_MAX_REQUESTS)" --output-root "$(SHADOW_PLAN_ROOT)"
+
+inspect-shadow-replay-plan:
+	@test -n "$(SHADOW_PLAN_PATH)" || { echo "Supply SHADOW_PLAN_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) inspect-shadow-replay-plan --plan "$(SHADOW_PLAN_PATH)"
+
+execute-shadow-replay:
+	@test -n "$(SHADOW_PLAN_PATH)" || { echo "Supply SHADOW_PLAN_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) execute-shadow-replay --plan "$(SHADOW_PLAN_PATH)" --maximum "$(SHADOW_MAX_REQUESTS)" --output-root "$(SHADOW_EXECUTION_ROOT)"
+
+inspect-shadow-execution:
+	@test -n "$(SHADOW_PLAN_PATH)" && test -n "$(SHADOW_EXECUTION_PATH)" || { echo "Supply SHADOW_PLAN_PATH and SHADOW_EXECUTION_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) inspect-shadow-execution --plan "$(SHADOW_PLAN_PATH)" --execution "$(SHADOW_EXECUTION_PATH)"
+
+verify-shadow-parity:
+	@test -n "$(SHADOW_PLAN_PATH)" && test -n "$(SHADOW_EXECUTION_PATH)" && test -n "$(SHADOW_REFERENCE_LEDGER_PATH)" || { echo "Supply SHADOW_PLAN_PATH, SHADOW_EXECUTION_PATH and SHADOW_REFERENCE_LEDGER_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) verify-shadow-parity --plan "$(SHADOW_PLAN_PATH)" --execution "$(SHADOW_EXECUTION_PATH)" --reference-ledger "$(SHADOW_REFERENCE_LEDGER_PATH)" --output-root "$(SHADOW_PARITY_ROOT)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

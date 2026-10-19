@@ -437,7 +437,9 @@ def build_candidate(
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
-def inspect_candidate(path: Path, *, tracking: TrackingConfig | None = None) -> dict[str, object]:
+def _inspect_candidate_loaded(
+    path: Path, *, tracking: TrackingConfig | None = None
+) -> tuple[dict[str, object], Pipeline]:
     if path.is_symlink() or not path.is_dir():
         raise CandidateError("Expected candidate directory")
     if {entry.name for entry in path.iterdir()} != {
@@ -502,11 +504,22 @@ def inspect_candidate(path: Path, *, tracking: TrackingConfig | None = None) -> 
         observed = _compare(model, cohorts, source)
         if observed != comparison:
             raise CandidateError("Reloaded model and archived prediction evidence differ")
-        return manifest
+        return manifest, model
     except CandidateError:
         raise
     except (OSError, KeyError, TypeError, ValueError) as error:
         raise CandidateError(f"Cannot inspect candidate: {error}") from error
+
+
+def inspect_candidate(path: Path, *, tracking: TrackingConfig | None = None) -> dict[str, object]:
+    return _inspect_candidate_loaded(path, tracking=tracking)[0]
+
+
+def load_verified_candidate(
+    path: Path, *, tracking: TrackingConfig | None = None
+) -> tuple[dict[str, object], Pipeline]:
+    """Verify bytes, provenance and archived parity before returning one trusted model load."""
+    return _inspect_candidate_loaded(path, tracking=tracking)
 
 
 def score_candidate(

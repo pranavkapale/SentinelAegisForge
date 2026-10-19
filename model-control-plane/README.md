@@ -97,6 +97,8 @@ Phase 21 verifies a selected drift snapshot and optionally compatible T1/T2 dela
 
 Phase 22 adds a separate source-neutral local feedback envelope, immutable complete provider-case revision ledgers and cumulative-receipt AS_OF resolution. Confirmed states can be evaluated against the same frozen Phase 19 prediction ledger in a new snapshot contract. The local provider-like fixtures are synthetic and do not establish real-world label quality. See [durable outcome feedback](../docs/architecture/durable-outcome-feedback.md) and the root `generate-local-feedback-fixture`, `build-feedback-ledger`, `resolve-feedback-as-of` and `evaluate-feedback-outcomes` targets. Old Phase 12/19 artifacts remain unchanged.
 
+Phase 23 adds an explicit, bounded local replay plan over a fixed corrected Delta version and research-only Registry version. Its request lifecycle and immutable terminal-result ledger are independent of the Phase 19 batch scorer; parity compares successful results with the frozen Phase 19 ledger. See [controlled shadow inference](../docs/architecture/controlled-shadow-inference.md) and the root `build-shadow-replay-plan`, `execute-shadow-replay` and `verify-shadow-parity` targets. This is not a live model endpoint or payment action.
+
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
 the latest version is captured once and recorded. Output defaults to the root's ignored
