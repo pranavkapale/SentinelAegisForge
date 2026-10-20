@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 23 — Controlled Non-Enforcing Shadow Inference**. A bounded local research replay now exercises an exact Registry version against fixed corrected Delta features, records one terminal result per request, and compares scores to the frozen Phase 19 ledger. This is historical synthetic execution, not live serving or proof of online feature availability. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or used for payment enforcement.
+The repository is in **Phase 24 — Commit-Aware Feature Availability & Durable Research Handoff**. A bounded, read-only Delta-version comparison identifies the first committed version containing each corrected statistical feature row and publishes an immutable local outbox for a non-enforcing receipt-only consumer. The Phase 23 replay remains historical synthetic research, not live serving or proof of original online feature-ready time. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no model is approved or used for payment enforcement.
 
 ## Local development
 
@@ -211,6 +211,8 @@ Build a manual evidence packet with `make build-monitoring-investigation INVESTI
 For the separate Phase 22 local feedback path, use `make generate-local-feedback-fixture FEEDBACK_PREDICTION_LEDGER_PATH=<absolute-ledger>` to create two inspectable synthetic JSONL batches from already scored event IDs. `make build-feedback-ledger` requires an explicit batch and fixed corrected Delta path/version; an optional `FEEDBACK_BASE_LEDGER_PATH` builds the next immutable snapshot. `make resolve-feedback-as-of` and `make evaluate-feedback-outcomes` require an explicit UTC cutoff. See [durable outcome feedback](docs/architecture/durable-outcome-feedback.md). These commands never rescore the model or treat pending/retracted cases as LEGIT.
 
 For the non-enforcing Phase 23 replay, use `make build-shadow-replay-plan` with an exact `REGISTERED_MODEL_VERSION`, `SHADOW_SOURCE_DELTA_PATH`, `SHADOW_SOURCE_VERSION`, `SHADOW_START` and `SHADOW_END`. Then use `make inspect-shadow-replay-plan SHADOW_PLAN_PATH=<path>`, `make execute-shadow-replay SHADOW_PLAN_PATH=<path>`, `make inspect-shadow-execution SHADOW_PLAN_PATH=<path> SHADOW_EXECUTION_PATH=<path>` and `make verify-shadow-parity` with those paths plus `SHADOW_REFERENCE_LEDGER_PATH=<Phase-19-ledger>`. See [controlled shadow inference](docs/architecture/controlled-shadow-inference.md). No Kafka or serving process starts.
+
+For a retained corrected statistical Delta table, use `make discover-feature-commits` or `make build-feature-ready-outbox` with explicit `FEATURE_AVAILABILITY_SOURCE_DELTA_PATH`, `FEATURE_AVAILABILITY_START_VERSION` and `FEATURE_AVAILABILITY_END_VERSION`. Inspect the resulting segment/outbox paths, then call `make handoff-ready-events` with explicit `FEATURE_READY_OUTBOX_PATH`, `FEATURE_READY_RECEIVER_ROOT` and `FEATURE_READY_MAXIMUM`; `make verify-feature-handoff` requires all ready IDs to have durable local receipts. See [feature availability handoff](docs/architecture/feature-availability-handoff.md). This does not start infrastructure, score a model or prove wall-clock online latency.
 
 `make infra-down` preserves local Kafka data. `make infra-reset` deliberately removes it. Infrastructure is not started by `make verify`.
 

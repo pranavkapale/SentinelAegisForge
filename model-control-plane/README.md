@@ -99,6 +99,8 @@ Phase 22 adds a separate source-neutral local feedback envelope, immutable compl
 
 Phase 23 adds an explicit, bounded local replay plan over a fixed corrected Delta version and research-only Registry version. Its request lifecycle and immutable terminal-result ledger are independent of the Phase 19 batch scorer; parity compares successful results with the frozen Phase 19 ledger. See [controlled shadow inference](../docs/architecture/controlled-shadow-inference.md) and the root `build-shadow-replay-plan`, `execute-shadow-replay` and `verify-shadow-parity` targets. This is not a live model endpoint or payment action.
 
+Phase 24 independently discovers committed feature-row first-visible Delta versions, publishes immutable commit segments and an outbox, and records idempotent durable receipts through a bounded local research-only handoff. It uses the existing strict 25-column validator and no model scorer. See [feature availability handoff](../docs/architecture/feature-availability-handoff.md) and the root `discover-feature-commits`, `build-feature-ready-outbox`, `handoff-ready-events` and `verify-feature-handoff` targets. Historical reconstruction is not an original feature-ready wall-clock timestamp or production Kafka delivery.
+
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
 the latest version is captured once and recorded. Output defaults to the root's ignored

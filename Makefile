@@ -121,6 +121,15 @@ SHADOW_EXECUTION_ROOT ?= $(CURDIR)/.local/ml/shadow-executions
 SHADOW_EXECUTION_PATH ?=
 SHADOW_REFERENCE_LEDGER_PATH ?=
 SHADOW_PARITY_ROOT ?= $(CURDIR)/.local/ml/shadow-parity
+FEATURE_AVAILABILITY_SOURCE_DELTA_PATH ?=
+FEATURE_AVAILABILITY_START_VERSION ?=
+FEATURE_AVAILABILITY_END_VERSION ?=
+FEATURE_COMMIT_SEGMENT_ROOT ?= $(CURDIR)/.local/ml/feature-commit-segments
+FEATURE_COMMIT_SEGMENT_PATH ?=
+FEATURE_READY_OUTBOX_ROOT ?= $(CURDIR)/.local/ml/feature-ready-outboxes
+FEATURE_READY_OUTBOX_PATH ?=
+FEATURE_READY_RECEIVER_ROOT ?=
+FEATURE_READY_MAXIMUM ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -412,6 +421,35 @@ inspect-shadow-execution:
 verify-shadow-parity:
 	@test -n "$(SHADOW_PLAN_PATH)" && test -n "$(SHADOW_EXECUTION_PATH)" && test -n "$(SHADOW_REFERENCE_LEDGER_PATH)" || { echo "Supply SHADOW_PLAN_PATH, SHADOW_EXECUTION_PATH and SHADOW_REFERENCE_LEDGER_PATH."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.shadow.cli $(SHADOW_REGISTRY_ARGS) verify-shadow-parity --plan "$(SHADOW_PLAN_PATH)" --execution "$(SHADOW_EXECUTION_PATH)" --reference-ledger "$(SHADOW_REFERENCE_LEDGER_PATH)" --output-root "$(SHADOW_PARITY_ROOT)"
+
+.PHONY: discover-feature-commits inspect-feature-commit-segment build-feature-ready-outbox inspect-feature-ready-outbox handoff-ready-events inspect-feature-handoff verify-feature-handoff
+discover-feature-commits:
+	@test -n "$(FEATURE_AVAILABILITY_SOURCE_DELTA_PATH)" && test -n "$(FEATURE_AVAILABILITY_START_VERSION)" && test -n "$(FEATURE_AVAILABILITY_END_VERSION)" || { echo "Supply Delta path and inclusive start/end versions."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli discover-feature-commits --source-delta "$(FEATURE_AVAILABILITY_SOURCE_DELTA_PATH)" --start-version "$(FEATURE_AVAILABILITY_START_VERSION)" --end-version "$(FEATURE_AVAILABILITY_END_VERSION)" --segment-root "$(FEATURE_COMMIT_SEGMENT_ROOT)"
+
+inspect-feature-commit-segment:
+	@test -n "$(FEATURE_COMMIT_SEGMENT_PATH)" || { echo "Supply FEATURE_COMMIT_SEGMENT_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli inspect-feature-commit-segment --segment "$(FEATURE_COMMIT_SEGMENT_PATH)"
+
+build-feature-ready-outbox:
+	@test -n "$(FEATURE_AVAILABILITY_SOURCE_DELTA_PATH)" && test -n "$(FEATURE_AVAILABILITY_START_VERSION)" && test -n "$(FEATURE_AVAILABILITY_END_VERSION)" || { echo "Supply Delta path and inclusive start/end versions."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli build-feature-ready-outbox --source-delta "$(FEATURE_AVAILABILITY_SOURCE_DELTA_PATH)" --start-version "$(FEATURE_AVAILABILITY_START_VERSION)" --end-version "$(FEATURE_AVAILABILITY_END_VERSION)" --segment-root "$(FEATURE_COMMIT_SEGMENT_ROOT)" --outbox-root "$(FEATURE_READY_OUTBOX_ROOT)"
+
+inspect-feature-ready-outbox:
+	@test -n "$(FEATURE_READY_OUTBOX_PATH)" || { echo "Supply FEATURE_READY_OUTBOX_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli inspect-feature-ready-outbox --outbox "$(FEATURE_READY_OUTBOX_PATH)"
+
+handoff-ready-events:
+	@test -n "$(FEATURE_READY_OUTBOX_PATH)" && test -n "$(FEATURE_READY_RECEIVER_ROOT)" && test -n "$(FEATURE_READY_MAXIMUM)" || { echo "Supply outbox path, receiver root and explicit maximum."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli handoff-ready-events --outbox "$(FEATURE_READY_OUTBOX_PATH)" --receiver-root "$(FEATURE_READY_RECEIVER_ROOT)" --maximum "$(FEATURE_READY_MAXIMUM)"
+
+inspect-feature-handoff:
+	@test -n "$(FEATURE_READY_OUTBOX_PATH)" && test -n "$(FEATURE_READY_RECEIVER_ROOT)" || { echo "Supply outbox path and receiver root."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli inspect-feature-handoff --outbox "$(FEATURE_READY_OUTBOX_PATH)" --receiver-root "$(FEATURE_READY_RECEIVER_ROOT)"
+
+verify-feature-handoff:
+	@test -n "$(FEATURE_READY_OUTBOX_PATH)" && test -n "$(FEATURE_READY_RECEIVER_ROOT)" || { echo "Supply outbox path and receiver root."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli verify-feature-handoff --outbox "$(FEATURE_READY_OUTBOX_PATH)" --receiver-root "$(FEATURE_READY_RECEIVER_ROOT)"
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:
