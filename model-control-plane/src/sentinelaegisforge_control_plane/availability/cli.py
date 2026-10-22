@@ -8,6 +8,7 @@ from sentinelaegisforge_control_plane.datasets.manifest import canonical_json
 
 from .contract import MAX_READY_EVENTS
 from .handoff import LocalResearchReceiver
+from .kafka_export import inspect_batch, prepare_batch
 from .outbox import build_outbox, build_segments, inspect_outbox, inspect_segment
 
 
@@ -36,6 +37,12 @@ def _parser() -> argparse.ArgumentParser:
         if name == "handoff-ready-events":
             command.add_argument("--maximum", required=True, type=int)
             command.add_argument("--replay", action="store_true")
+    prepare = sub.add_parser("prepare-feature-kafka-batch")
+    prepare.add_argument("--outbox", required=True, type=Path)
+    prepare.add_argument("--output-root", required=True, type=Path)
+    prepare.add_argument("--maximum", required=True, type=int)
+    inspect_batch_cmd = sub.add_parser("inspect-feature-kafka-batch")
+    inspect_batch_cmd.add_argument("--batch", required=True, type=Path)
     return parser
 
 
@@ -56,6 +63,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = inspect_outbox(output)[0]
     elif args.command == "inspect-feature-ready-outbox":
         result = inspect_outbox(args.outbox)[0]
+    elif args.command == "prepare-feature-kafka-batch":
+        result = inspect_batch(prepare_batch(args.outbox, args.output_root, maximum=args.maximum))
+    elif args.command == "inspect-feature-kafka-batch":
+        result = inspect_batch(args.batch)
     else:
         if args.command != "handoff-ready-events" and not args.receiver_root.exists():
             raise ValueError("Receiver root does not exist; inspection never creates receipts")

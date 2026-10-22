@@ -101,6 +101,8 @@ Phase 23 adds an explicit, bounded local replay plan over a fixed corrected Delt
 
 Phase 24 independently discovers committed feature-row first-visible Delta versions, publishes immutable commit segments and an outbox, and records idempotent durable receipts through a bounded local research-only handoff. It uses the existing strict 25-column validator and no model scorer. See [feature availability handoff](../docs/architecture/feature-availability-handoff.md) and the root `discover-feature-commits`, `build-feature-ready-outbox`, `handoff-ready-events` and `verify-feature-handoff` targets. Historical reconstruction is not an original feature-ready wall-clock timestamp or production Kafka delivery.
 
+Phase 25 adds a read-only exporter that verifies the Phase 24 outbox and prepares one bounded, immutable Kafka publication batch. The Scala module publishes and consumes that batch on an isolated `features.ready` topic; the Python module does not become a second Kafka producer or perform inference. See [Kafka feature-ready transport](../docs/architecture/feature-ready-kafka-transport.md).
+
 The stdlib CLI is `python -m sentinelaegisforge_control_plane.datasets.cli build|inspect`.
 `--source-version` / `ML_SOURCE_DELTA_VERSION` pins a historical Delta version; otherwise
 the latest version is captured once and recorded. Output defaults to the root's ignored

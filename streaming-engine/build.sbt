@@ -18,6 +18,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro" % "1.12.2",
       "org.apache.kafka" % "kafka-clients" % "4.3.1",
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.21.2",
       ("io.confluent" % "kafka-avro-serializer" % "8.3.2")
         .exclude("org.apache.kafka", "kafka-clients"),
       "org.apache.spark" %% "spark-sql" % "4.2.0",

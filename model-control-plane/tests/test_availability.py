@@ -10,9 +10,13 @@ import pyarrow as pa
 import pytest
 from deltalake import DeltaTable, write_deltalake
 
-from sentinelaegisforge_control_plane.availability.contract import AvailabilityError
+from sentinelaegisforge_control_plane.availability.contract import AvailabilityError, digest
 from sentinelaegisforge_control_plane.availability.discovery import discover_versions
 from sentinelaegisforge_control_plane.availability.handoff import LocalResearchReceiver
+from sentinelaegisforge_control_plane.availability.kafka_export import (
+    inspect_batch,
+    prepare_batch,
+)
 from sentinelaegisforge_control_plane.availability.outbox import (
     build_outbox,
     build_segments,
@@ -21,6 +25,7 @@ from sentinelaegisforge_control_plane.availability.outbox import (
 )
 from sentinelaegisforge_control_plane.datasets.dataset_contract import SOURCE_SCHEMA
 from sentinelaegisforge_control_plane.datasets.feature_source import FeatureSnapshot
+from sentinelaegisforge_control_plane.datasets.manifest import canonical_json
 
 
 def feature(number: int, **changes: object) -> dict[str, object]:
@@ -276,6 +281,51 @@ def test_conflicting_redelivery_and_receiver_outbox_isolation(tmp_path: Path) ->
     other = build_outbox(segments[:2], tmp_path / "outboxes")
     with pytest.raises(AvailabilityError, match="different outbox"):
         LocalResearchReceiver(other, tmp_path / "receiver")
+
+
+def test_verified_kafka_batch_is_deterministic_and_exact(tmp_path: Path) -> None:
+    _, _, outbox = published(tmp_path)
+    batch = prepare_batch(outbox, tmp_path / "batches", maximum=5)
+    manifest = inspect_batch(batch)
+    assert manifest["ready_event_count"] == 5
+    assert manifest["outbox_id"] == inspect_outbox(outbox)[0]["outbox_id"]
+    assert (batch / "records.jsonl").read_bytes() == (outbox / "ready_events.jsonl").read_bytes()
+    assert prepare_batch(outbox, tmp_path / "batches", maximum=5) == batch
+    with pytest.raises(AvailabilityError, match="maximum"):
+        prepare_batch(outbox, tmp_path / "batches", maximum=4)
+
+
+def test_kafka_batch_rejects_tampering_and_unverified_outbox(tmp_path: Path) -> None:
+    _, _, outbox = published(tmp_path)
+    batch = prepare_batch(outbox, tmp_path / "batches", maximum=5)
+    (batch / "records.jsonl").write_bytes(b"{}\n")
+    with pytest.raises(AvailabilityError):
+        inspect_batch(batch)
+    with pytest.raises(AvailabilityError):
+        prepare_batch(outbox, tmp_path / "batches", maximum=5)
+    (outbox / "ready_events.jsonl").write_bytes(b"{}\n")
+    with pytest.raises(AvailabilityError):
+        prepare_batch(outbox, tmp_path / "other", maximum=5)
+
+
+def test_cross_language_feature_ready_golden_vector() -> None:
+    import json
+
+    fixture_path = (
+        Path(__file__).resolve().parents[2] / "contracts/test-fixtures/feature-ready-v1.jsonl"
+    )
+    raw = fixture_path.read_bytes()
+    envelope = json.loads(raw)
+    assert raw == canonical_json(envelope)
+    assert envelope["ready_event_id"] == digest(
+        [
+            envelope["availability_contract_version"],
+            envelope["source_delta_table_id"],
+            envelope["event_id"],
+            envelope["first_visible_delta_version"],
+            envelope["source_feature_row_fingerprint"],
+        ]
+    )
 
 
 def test_no_model_invocation_on_delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

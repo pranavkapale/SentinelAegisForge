@@ -2,17 +2,17 @@
 
 ## Purpose
 
-Kafka will provide the transport boundary between transaction sources and the future streaming engine. Step 2 establishes only a reproducible local broker and raw input topic. It does not produce, consume, serialize, validate, or process transaction messages.
+Step 2 originally established the reproducible local broker and raw input topic. Later phases added transaction publishing/ingestion and, in Phase 25, a separate feature-ready notification topic. This document describes the shared local broker, not either application's processing contract.
 
 ## Current implementation
 
 The local environment uses the official JVM `apache/kafka:4.3.1` image as one combined KRaft broker/controller. Host applications connect to `localhost:9092`; future services on the Compose network can connect to `kafka:19092`. The controller listener is internal to the container network.
 
-The single application topic is `transactions.raw`, explicitly provisioned with three partitions and replication factor one. Automatic topic creation is disabled so a mistyped topic name does not silently create application infrastructure.
+`transactions.raw` is explicitly provisioned by `make infra-up` with three partitions and replication factor one. Phase 25 separately provisions the research notification topic `features.ready` with `make provision-feature-ready-topic`; it is not created automatically by `infra-up`. Automatic topic creation is disabled so a mistyped topic name does not silently create application infrastructure. See [Kafka feature-ready transport](feature-ready-kafka-transport.md).
 
 Confluent Schema Registry 8.3.2 runs at `http://localhost:8081` and connects to Kafka through `kafka:19092`. It stores metadata in the compacted `_schemas` Kafka topic with local replication factor one. No separate registry volume exists: the Kafka data volume preserves registry state during normal shutdown and deliberately removes it during reset.
 
-The broker uses a Docker-managed volume. `make infra-down` stops and removes the Compose containers and network while preserving that volume. `make infra-reset` deliberately removes the containers and volume; a later `make infra-up` creates fresh broker storage and reprovisions the topic.
+The broker uses a Docker-managed volume. `make infra-down` stops and removes the Compose containers and network while preserving that volume. `make infra-reset` deliberately removes the containers and volume; a later `make infra-up` creates fresh broker storage and reprovisions `transactions.raw`. The separate `features.ready` topic must then be explicitly reprovisioned if needed.
 
 ## Why single-node
 

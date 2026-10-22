@@ -130,6 +130,16 @@ FEATURE_READY_OUTBOX_ROOT ?= $(CURDIR)/.local/ml/feature-ready-outboxes
 FEATURE_READY_OUTBOX_PATH ?=
 FEATURE_READY_RECEIVER_ROOT ?=
 FEATURE_READY_MAXIMUM ?=
+FEATURE_KAFKA_BATCH_ROOT ?= $(CURDIR)/.local/kafka/feature-ready-batches
+FEATURE_KAFKA_BATCH_PATH ?=
+FEATURE_KAFKA_JOURNAL_ROOT ?= $(CURDIR)/.local/kafka/feature-ready-publications
+FEATURE_KAFKA_RECEIPT_ROOT ?=
+FEATURE_KAFKA_GROUP ?=
+FEATURE_KAFKA_MAXIMUM ?= 5000
+FEATURE_KAFKA_MAX_DELIVERIES ?= 5000
+FEATURE_KAFKA_FAIL_AFTER_ACK_AT ?=
+FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT ?=
+FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -450,6 +460,60 @@ inspect-feature-handoff:
 verify-feature-handoff:
 	@test -n "$(FEATURE_READY_OUTBOX_PATH)" && test -n "$(FEATURE_READY_RECEIVER_ROOT)" || { echo "Supply outbox path and receiver root."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli verify-feature-handoff --outbox "$(FEATURE_READY_OUTBOX_PATH)" --receiver-root "$(FEATURE_READY_RECEIVER_ROOT)"
+
+.PHONY: provision-feature-ready-topic verify-feature-ready-topic prepare-feature-kafka-batch inspect-feature-kafka-batch feature-kafka-offsets publish-feature-ready-kafka inspect-feature-kafka-publication consume-feature-ready-kafka inspect-feature-kafka-receipts verify-feature-kafka-reconciliation verify-feature-ready-kafka-integration
+FEATURE_KAFKA_APP = io.sentinelaegisforge.streaming.kafka.featureavailability.FeatureReadyKafkaApp
+FEATURE_KAFKA_ARGS = --bootstrap-servers=$(BOOTSTRAP_SERVERS) --batch=$(FEATURE_KAFKA_BATCH_PATH)
+
+provision-feature-ready-topic:
+	bash scripts/provision-feature-ready-topic.sh
+	$(MAKE) verify-feature-ready-topic
+
+verify-feature-ready-topic:
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=topic --bootstrap-servers=$(BOOTSTRAP_SERVERS)"
+
+prepare-feature-kafka-batch:
+	@test -n "$(FEATURE_READY_OUTBOX_PATH)" || { echo "Supply FEATURE_READY_OUTBOX_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli prepare-feature-kafka-batch --outbox "$(FEATURE_READY_OUTBOX_PATH)" --output-root "$(FEATURE_KAFKA_BATCH_ROOT)" --maximum "$(FEATURE_KAFKA_MAXIMUM)"
+
+inspect-feature-kafka-batch:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" || { echo "Supply FEATURE_KAFKA_BATCH_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.availability.cli inspect-feature-kafka-batch --batch "$(FEATURE_KAFKA_BATCH_PATH)"
+
+feature-kafka-offsets:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(FEATURE_KAFKA_GROUP)" || { echo "Supply batch path and stable group ID."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=offsets $(FEATURE_KAFKA_ARGS) --group=$(FEATURE_KAFKA_GROUP)"
+
+publish-feature-ready-kafka:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" || { echo "Supply FEATURE_KAFKA_BATCH_PATH."; exit 1; }
+	$(MAKE) inspect-feature-kafka-batch FEATURE_KAFKA_BATCH_PATH="$(FEATURE_KAFKA_BATCH_PATH)"
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=publish $(FEATURE_KAFKA_ARGS) --journal-root=$(FEATURE_KAFKA_JOURNAL_ROOT) --maximum-deliveries=$(FEATURE_KAFKA_MAX_DELIVERIES) $(if $(FEATURE_KAFKA_REPLAY),--replay-acknowledged,) $(if $(FEATURE_KAFKA_FAIL_AFTER_ACK_AT),--fail-after-ack-before-journal-at=$(FEATURE_KAFKA_FAIL_AFTER_ACK_AT),)"
+
+inspect-feature-kafka-publication:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" || { echo "Supply FEATURE_KAFKA_BATCH_PATH."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=inspect-publication $(FEATURE_KAFKA_ARGS) --journal-root=$(FEATURE_KAFKA_JOURNAL_ROOT)"
+
+consume-feature-ready-kafka:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(FEATURE_KAFKA_RECEIPT_ROOT)" && test -n "$(FEATURE_KAFKA_GROUP)" || { echo "Supply batch path, receipt root and stable group ID."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=consume $(FEATURE_KAFKA_ARGS) --receipt-root=$(FEATURE_KAFKA_RECEIPT_ROOT) --group=$(FEATURE_KAFKA_GROUP) --maximum=$(FEATURE_KAFKA_MAXIMUM) $(if $(FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT),--fail-before-receipt-at=$(FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT),) $(if $(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),--fail-after-receipt-before-commit-at=$(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),)"
+
+inspect-feature-kafka-receipts:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(FEATURE_KAFKA_RECEIPT_ROOT)" && test -n "$(FEATURE_KAFKA_GROUP)" || { echo "Supply batch path, receipt root and stable group ID."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=inspect-receipts $(FEATURE_KAFKA_ARGS) --receipt-root=$(FEATURE_KAFKA_RECEIPT_ROOT) --group=$(FEATURE_KAFKA_GROUP)"
+
+verify-feature-kafka-reconciliation:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(FEATURE_KAFKA_RECEIPT_ROOT)" && test -n "$(FEATURE_KAFKA_GROUP)" || { echo "Supply batch path, receipt root and stable group ID."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=reconcile $(FEATURE_KAFKA_ARGS) --journal-root=$(FEATURE_KAFKA_JOURNAL_ROOT) --receipt-root=$(FEATURE_KAFKA_RECEIPT_ROOT) --group=$(FEATURE_KAFKA_GROUP)"
+
+verify-feature-ready-kafka-integration:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(FEATURE_KAFKA_RECEIPT_ROOT)" && test -n "$(FEATURE_KAFKA_GROUP)" || { echo "Supply batch path, receipt root and stable group ID. This target publishes and explicitly replays notifications."; exit 1; }
+	$(MAKE) verify-feature-ready-topic
+	$(MAKE) publish-feature-ready-kafka
+	$(MAKE) consume-feature-ready-kafka
+	$(MAKE) verify-feature-kafka-reconciliation
+	$(MAKE) publish-feature-ready-kafka FEATURE_KAFKA_REPLAY=1
+	$(MAKE) consume-feature-ready-kafka
+	$(MAKE) verify-feature-kafka-reconciliation
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

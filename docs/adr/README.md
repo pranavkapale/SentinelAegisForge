@@ -63,3 +63,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-027: Deterministic synthetic fraud corpus](ADR-027-deterministic-synthetic-fraud-corpus.md)
 - [ADR-028: Synthetic corpus integration and evaluation](ADR-028-synthetic-corpus-integration-and-evaluation.md)
 - [ADR-029: Local MLflow experiment tracking and run identity](ADR-029-local-mlflow-experiment-tracking.md)
+- [ADR-039: Kafka feature-ready transport and isolated research consumption](ADR-039-feature-ready-kafka-transport.md)
