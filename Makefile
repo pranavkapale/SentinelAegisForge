@@ -140,6 +140,21 @@ FEATURE_KAFKA_MAX_DELIVERIES ?= 5000
 FEATURE_KAFKA_FAIL_AFTER_ACK_AT ?=
 FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT ?=
 FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT ?=
+SHADOW_KAFKA_GROUP = sentinel-feature-ready-shadow-v1
+SHADOW_KAFKA_RECEIPT_ROOT ?= $(CURDIR)/.local/kafka/feature-ready-receivers/shadow-v1
+SHADOW_INBOX_ROOT ?= $(CURDIR)/.local/ml/kafka-shadow-inboxes
+SHADOW_INBOX_PATH ?=
+SHADOW_RESULT_ROOT ?= $(CURDIR)/.local/ml/kafka-shadow-results
+SHADOW_RUN_ROOT ?= $(CURDIR)/.local/ml/kafka-shadow-runs
+SHADOW_RUN_PATH ?=
+SHADOW_REGISTRY_VERSION ?= 1
+SHADOW_SCORE_START ?=
+SHADOW_SCORE_END ?=
+SHADOW_MAX_EVENTS ?= 5000
+SHADOW_MAX_CACHED_ROWS ?= 10000
+SHADOW_MAX_ATTEMPTS ?= 5000
+SHADOW_INFERENCE_BATCH_SIZE ?= 100
+SHADOW_FAIL_AFTER_RESULT ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -514,6 +529,44 @@ verify-feature-ready-kafka-integration:
 	$(MAKE) publish-feature-ready-kafka FEATURE_KAFKA_REPLAY=1
 	$(MAKE) consume-feature-ready-kafka
 	$(MAKE) verify-feature-kafka-reconciliation
+
+.PHONY: consume-feature-ready-shadow seal-feature-ready-shadow-inbox inspect-feature-ready-shadow-inbox execute-feature-ready-shadow inspect-feature-ready-shadow verify-feature-ready-shadow-parity verify-feature-ready-shadow-integration
+
+consume-feature-ready-shadow:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" || { echo "Supply FEATURE_KAFKA_BATCH_PATH."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=consume $(FEATURE_KAFKA_ARGS) --receipt-root=$(SHADOW_KAFKA_RECEIPT_ROOT) --group=$(SHADOW_KAFKA_GROUP) --maximum=$(FEATURE_KAFKA_MAXIMUM) $(if $(FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT),--fail-before-receipt-at=$(FEATURE_KAFKA_FAIL_BEFORE_RECEIPT_AT),) $(if $(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),--fail-after-receipt-before-commit-at=$(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),)"
+
+seal-feature-ready-shadow-inbox:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" || { echo "Supply FEATURE_KAFKA_BATCH_PATH."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=seal-shadow-inbox $(FEATURE_KAFKA_ARGS) --journal-root=$(FEATURE_KAFKA_JOURNAL_ROOT) --receipt-root=$(SHADOW_KAFKA_RECEIPT_ROOT) --group=$(SHADOW_KAFKA_GROUP) --inbox-root=$(SHADOW_INBOX_ROOT)"
+
+inspect-feature-ready-shadow-inbox:
+	@test -n "$(SHADOW_INBOX_PATH)" || { echo "Supply SHADOW_INBOX_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.kafka_shadow.cli inspect-inbox --inbox "$(SHADOW_INBOX_PATH)"
+
+execute-feature-ready-shadow:
+	@test -n "$(SHADOW_INBOX_PATH)" && test -n "$(SHADOW_SOURCE_DELTA_PATH)" && test -n "$(SHADOW_SCORE_START)" && test -n "$(SHADOW_SCORE_END)" && test -n "$(SHADOW_REFERENCE_LEDGER_PATH)" || { echo "Supply inbox, source Delta, explicit UTC window and Phase 19 ledger."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.kafka_shadow.cli execute --inbox "$(SHADOW_INBOX_PATH)" --source-delta "$(SHADOW_SOURCE_DELTA_PATH)" --model-version "$(SHADOW_REGISTRY_VERSION)" --score-start "$(SHADOW_SCORE_START)" --score-end "$(SHADOW_SCORE_END)" --reference-ledger "$(SHADOW_REFERENCE_LEDGER_PATH)" --result-root "$(SHADOW_RESULT_ROOT)" --run-root "$(SHADOW_RUN_ROOT)" --maximum-events "$(SHADOW_MAX_EVENTS)" --maximum-cached-rows "$(SHADOW_MAX_CACHED_ROWS)" --maximum-attempts "$(SHADOW_MAX_ATTEMPTS)" --inference-batch-size "$(SHADOW_INFERENCE_BATCH_SIZE)" $(if $(SHADOW_FAIL_AFTER_RESULT),--fail-after-result "$(SHADOW_FAIL_AFTER_RESULT)",)
+
+inspect-feature-ready-shadow:
+	@test -n "$(SHADOW_INBOX_PATH)" && test -n "$(SHADOW_CANDIDATE_ID)" && test -n "$(SHADOW_MODEL_TREE_SHA256)" || { echo "Supply inbox, candidate ID and model-tree hash."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.kafka_shadow.cli inspect-results --inbox "$(SHADOW_INBOX_PATH)" --candidate-id "$(SHADOW_CANDIDATE_ID)" --model-tree-sha256 "$(SHADOW_MODEL_TREE_SHA256)" --result-root "$(SHADOW_RESULT_ROOT)"
+
+verify-feature-ready-shadow-parity:
+	@test -n "$(SHADOW_RUN_PATH)" || { echo "Supply SHADOW_RUN_PATH."; exit 1; }
+	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.kafka_shadow.cli inspect-run --run "$(SHADOW_RUN_PATH)"
+
+verify-feature-ready-shadow-integration:
+	@test -n "$(FEATURE_KAFKA_BATCH_PATH)" && test -n "$(SHADOW_INBOX_PATH)" || { echo "Supply Phase 25 batch and expected sealed inbox path."; exit 1; }
+	$(MAKE) consume-feature-ready-shadow
+	$(MAKE) seal-feature-ready-shadow-inbox
+	$(MAKE) inspect-feature-ready-shadow-inbox
+	$(MAKE) execute-feature-ready-shadow
+	$(MAKE) publish-feature-ready-kafka FEATURE_KAFKA_REPLAY=1
+	$(MAKE) consume-feature-ready-shadow
+	$(MAKE) seal-feature-ready-shadow-inbox
+	$(MAKE) inspect-feature-ready-shadow-inbox
+	$(MAKE) execute-feature-ready-shadow
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

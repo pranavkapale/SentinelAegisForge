@@ -93,6 +93,32 @@ object FeatureReadyKafkaApp {
           topicIdentity
         )
         println(FeatureReadyReconciliation.verify(batch, journal, store, bootstrap, group))
+      case "seal-shadow-inbox" =>
+        require(group == FeatureReadyShadowInbox.Group, "Shadow inbox requires its stable group")
+        val receiptRoot = Path.of(required("receipt-root"))
+        val journal = new FeatureReadyPublicationJournal(
+          batch,
+          Path.of(required("journal-root")),
+          topicIdentity
+        )
+        val store = new FeatureReadyReceiptStore(batch, receiptRoot, group, topicIdentity)
+        val reconciliation = FeatureReadyReconciliation.verify(
+          batch,
+          journal,
+          store,
+          bootstrap,
+          group
+        )
+        println(
+          FeatureReadyShadowInbox.sealReconciled(
+            batch,
+            store,
+            receiptRoot,
+            topicIdentity,
+            reconciliation,
+            Path.of(required("inbox-root"))
+          )
+        )
       case "offsets" =>
         val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
           FeatureReadyKafkaConfig.consumer(bootstrap, s"$group-offset-inspection")

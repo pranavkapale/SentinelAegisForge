@@ -142,6 +142,72 @@ final class FeatureReadyTransportSpec extends AnyFunSuite {
     assert(restarted.receiptIds.size == 1)
   }
 
+  test("shadow inbox seals only complete dedicated-group receipts and retains semantic identity") {
+    val source = batch
+    val root = Files.createTempDirectory("feature-ready-shadow-seal-")
+    val receipts = root.resolve("receipts")
+    val store = new FeatureReadyReceiptStore(source, receipts, FeatureReadyShadowInbox.Group, topic)
+    val reconciliation = FeatureReadyReconciliation(
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      Map(0 -> 1),
+      Map(0 -> 0L, 1 -> 0L, 2 -> 0L),
+      Map(0 -> 1L, 1 -> 0L, 2 -> 0L),
+      Map(0 -> 1L, 1 -> 0L, 2 -> 0L)
+    )
+    intercept[IllegalArgumentException] {
+      FeatureReadyShadowInbox.sealReconciled(
+        source,
+        store,
+        receipts,
+        topic,
+        reconciliation,
+        root.resolve("inboxes")
+      )
+    }
+    val event = source.records.head
+    val record = new ConsumerRecord[Array[Byte], Array[Byte]](
+      source.topic,
+      0,
+      0L,
+      FeatureReadyCodec.key(event.event),
+      event.bytes
+    )
+    assert(store.accept(record))
+    val first = FeatureReadyShadowInbox.sealReconciled(
+      source,
+      store,
+      receipts,
+      topic,
+      reconciliation,
+      root.resolve("inboxes")
+    )
+    assert(Files.isRegularFile(first.resolve("inbox_manifest.json")))
+    assert(
+      java.util.Arrays.equals(Files.readAllBytes(first.resolve("ready_events.jsonl")), event.bytes)
+    )
+    assert(!store.accept(record))
+    val replay = reconciliation.copy(brokerPhysical = 2, brokerDuplicatePhysical = 1)
+    assert(
+      FeatureReadyShadowInbox.sealReconciled(
+        source,
+        store,
+        receipts,
+        topic,
+        replay,
+        root.resolve("inboxes")
+      ) == first
+    )
+    val manifest =
+      FeatureReadyCodec.parseJson(Files.readAllBytes(first.resolve("inbox_manifest.json")))
+    assert(FeatureReadyCodec.text(manifest, "group_id") == FeatureReadyShadowInbox.Group)
+    assert(FeatureReadyCodec.integer(manifest, "broker_physical_records") == 1L)
+  }
+
   test("publication batch byte hash and source-outbox binding fail closed") {
     val source = batch
     val root = Files.createTempDirectory("feature-ready-batch-")
