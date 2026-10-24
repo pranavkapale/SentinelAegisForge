@@ -321,6 +321,50 @@ final class FeatureReadyTransportSpec extends AnyFunSuite {
     assert(consumer.committedProgress == Vector(Map(0 -> 1L)))
   }
 
+  test("incremental operational fence is stable and refuses a recreated Kafka topic") {
+    val root = Files.createTempDirectory("feature-ready-operational-fence-")
+    val path = root.resolve("fence.json")
+    val fields = Seq[(String, Any)](
+      "contract_version" -> FeatureReadyOperationalTransport.FenceVersion,
+      "group_id" -> FeatureReadyOperationalTransport.Group,
+      "cluster_id" -> topic.clusterId,
+      "topic_id" -> topic.topicId,
+      "topic" -> FeatureReadyCodec.Topic,
+      "beginning_0" -> 0L,
+      "end_0" -> 5L,
+      "beginning_1" -> 0L,
+      "end_1" -> 3L,
+      "beginning_2" -> 0L,
+      "end_2" -> 0L
+    )
+    assert(FeatureReadyFiles.claim(path, FeatureReadyCodec.objectBytes(fields: _*)))
+    assert(
+      FeatureReadyOperationalTransport.boundary(path, topic) ==
+        Map(0 -> 5L, 1 -> 3L, 2 -> 0L)
+    )
+    intercept[IllegalArgumentException] {
+      FeatureReadyOperationalTransport.boundary(path, topic.copy(topicId = "new-topic"))
+    }
+    assert(FeatureReadyOperationalTransport.Group != FeatureReadyShadowInbox.Group)
+  }
+
+  test("operational minimum fence rejects prior offsets without committing them") {
+    val source = batch
+    val store = new FeatureReadyReceiptStore(
+      source,
+      Files.createTempDirectory("feature-ready-operational-start-"),
+      FeatureReadyOperationalTransport.Group,
+      topic
+    )
+    val consumer = mockConsumer(source)
+    intercept[IllegalArgumentException] {
+      new FeatureReadyKafkaConsumer(consumer, source, store)
+        .consume(1, minimumStart = Some(Map(0 -> 1L, 1 -> 0L, 2 -> 0L)))
+    }
+    assert(store.receiptIds.isEmpty)
+    assert(consumer.committedProgress.isEmpty)
+  }
+
   test("before-receipt crash does not commit; after-receipt crash deduplicates on restart") {
     val source = batch
     val store = new FeatureReadyReceiptStore(

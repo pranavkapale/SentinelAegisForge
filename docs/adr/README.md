@@ -64,3 +64,5 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-028: Synthetic corpus integration and evaluation](ADR-028-synthetic-corpus-integration-and-evaluation.md)
 - [ADR-029: Local MLflow experiment tracking and run identity](ADR-029-local-mlflow-experiment-tracking.md)
 - [ADR-039: Kafka feature-ready transport and isolated research consumption](ADR-039-feature-ready-kafka-transport.md)
+- [ADR-040: Kafka-triggered research shadow inference](ADR-040-kafka-triggered-research-shadow-inference.md)
+- [ADR-041: Incremental shadow operations and backpressure](ADR-041-incremental-shadow-operations-and-backpressure.md)

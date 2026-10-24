@@ -31,9 +31,43 @@ object FeatureReadyKafkaApp {
       )
       return
     }
+    if (mode == "initialize-operational-fence") {
+      val end = FeatureReadyOperationalTransport.initialize(
+        bootstrap,
+        topicIdentity,
+        Path.of(required("fence-path"))
+      )
+      println(s"operational_group=${FeatureReadyOperationalTransport.Group} starting_end=$end")
+      return
+    }
     val batch = FeatureReadyBatch.load(Path.of(required("batch")))
     val group = options.getOrElse("group", "sentinel-feature-ready-research-v1")
     mode match {
+      case "accept-operational-batch" =>
+        require(group == FeatureReadyOperationalTransport.Group, "Wrong operational group")
+        val started = System.nanoTime()
+        FeatureReadyOperationalTransport.accept(
+          bootstrap,
+          topicIdentity,
+          batch,
+          Path.of(required("journal-root")),
+          Path.of(required("receipt-root")),
+          Path.of(required("preceding-boundary")),
+          Path.of(required("acceptance-path")),
+          required("maximum").toInt,
+          options.get("fail-after-receipt-before-commit-at").map(_.toInt).getOrElse(-1)
+        )
+        options
+          .get("observation-root")
+          .foreach(root =>
+            FeatureReadyOperationalTransport.observation(
+              Path.of(root),
+              "kafka_acceptance",
+              batch.batchId,
+              System.nanoTime() - started
+            )
+          )
+        println(s"accepted_operational_batch=${batch.batchId}")
       case "publish" =>
         val journal = new FeatureReadyPublicationJournal(
           batch,
@@ -43,11 +77,22 @@ object FeatureReadyKafkaApp {
         val producer =
           new KafkaProducer[Array[Byte], Array[Byte]](FeatureReadyKafkaConfig.producer(bootstrap))
         val publisher = new FeatureReadyKafkaPublisher(producer, batch, journal)
+        val started = System.nanoTime()
         val delivered = publisher.publish(
           args.contains("--replay-acknowledged"),
           options.get("fail-after-ack-before-journal-at").map(_.toInt).getOrElse(-1),
           options.get("maximum-deliveries").map(_.toInt).getOrElse(5000)
         )
+        options
+          .get("observation-root")
+          .foreach(root =>
+            FeatureReadyOperationalTransport.observation(
+              Path.of(root),
+              "kafka_publication",
+              batch.batchId,
+              System.nanoTime() - started
+            )
+          )
         println(s"delivered_this_attempt=$delivered ${journal.summary}")
       case "inspect-publication" =>
         val journal = new FeatureReadyPublicationJournal(

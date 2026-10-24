@@ -24,7 +24,8 @@ final class FeatureReadyKafkaConsumer(
   def consume(
       maximum: Int,
       failBeforeReceiptAt: Int = -1,
-      failAfterReceiptBeforeCommitAt: Int = -1
+      failAfterReceiptBeforeCommitAt: Int = -1,
+      minimumStart: Option[Map[Int, Long]] = None
   ): FeatureReadyConsumeReport = {
     require(maximum >= 1 && maximum <= 5000, "Invalid bounded consume maximum")
     consumer.subscribe(Seq(batch.topic).asJava)
@@ -55,6 +56,12 @@ final class FeatureReadyKafkaConsumer(
         )
         tp -> start
       })
+      minimumStart.foreach { expected =>
+        require(
+          progress.forall { case (tp, next) => next >= expected(tp.partition()) },
+          "Operational group progress precedes its accepted offset fence"
+        )
+      }
       var examined = 0
       var idle = 0
       var records = first

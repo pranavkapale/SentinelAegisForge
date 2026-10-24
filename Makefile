@@ -155,6 +155,27 @@ SHADOW_MAX_CACHED_ROWS ?= 10000
 SHADOW_MAX_ATTEMPTS ?= 5000
 SHADOW_INFERENCE_BATCH_SIZE ?= 100
 SHADOW_FAIL_AFTER_RESULT ?=
+INCREMENTAL_SOURCE_DELTA_PATH ?= $(CURDIR)/.local/phase27/statistical-fixture
+INCREMENTAL_ROOT ?= $(CURDIR)/.local/phase27/streams
+INCREMENTAL_FENCE_PATH ?= $(CURDIR)/.local/phase27/operational-fence.json
+INCREMENTAL_STREAM_PATH ?=
+INCREMENTAL_BATCH_ID ?=
+INCREMENTAL_BATCH_PATH ?=
+INCREMENTAL_PRECEDING_BOUNDARY ?= $(INCREMENTAL_FENCE_PATH)
+INCREMENTAL_FIXTURE_SEED ?= 2701
+INCREMENTAL_FIXTURE_FIRST_INDEX ?= 0
+INCREMENTAL_FIXTURE_COUNT ?= 10
+INCREMENTAL_FIXTURE_BASE_TIME ?= 2030-01-05T00:00:00Z
+INCREMENTAL_FIRST_VERSION ?= 0
+INCREMENTAL_MODEL_VERSION ?= 1
+INCREMENTAL_UNDISCOVERED_LIMIT ?= 8
+INCREMENTAL_UNPUBLISHED_LIMIT ?= 500
+INCREMENTAL_ACCEPTED_LIMIT ?= 20
+INCREMENTAL_TICK_LIMIT ?= 10
+INCREMENTAL_CACHED_ROWS_LIMIT ?= 5000
+INCREMENTAL_SCORE_START ?= 2030-01-04T00:00:00Z
+INCREMENTAL_SCORE_END ?= 2030-01-10T00:00:00Z
+INCREMENTAL_CANDIDATE_PATH ?=
 SCENARIO_SEED ?=
 SCENARIO_BASE_TIME ?=
 SCENARIO_COUNT ?= 1500
@@ -567,6 +588,55 @@ verify-feature-ready-shadow-integration:
 	$(MAKE) seal-feature-ready-shadow-inbox
 	$(MAKE) inspect-feature-ready-shadow-inbox
 	$(MAKE) execute-feature-ready-shadow
+
+# Phase 27 is an operator-triggered, research-only lineage. No target below is part of `verify`.
+.PHONY: initialize-incremental-fixture append-incremental-fixture initialize-incremental-shadow discover-incremental-features publish-incremental-shadow-batch accept-incremental-shadow-batch process-incremental-shadow-work inspect-incremental-shadow verify-incremental-shadow report-incremental-shadow verify-incremental-shadow-integration
+INCREMENTAL_CLI = cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.incremental_shadow.cli
+
+initialize-incremental-fixture:
+	$(INCREMENTAL_CLI) fixture-init --source "$(INCREMENTAL_SOURCE_DELTA_PATH)"
+
+append-incremental-fixture:
+	$(INCREMENTAL_CLI) fixture-append --source "$(INCREMENTAL_SOURCE_DELTA_PATH)" --seed "$(INCREMENTAL_FIXTURE_SEED)" --first-index "$(INCREMENTAL_FIXTURE_FIRST_INDEX)" --count "$(INCREMENTAL_FIXTURE_COUNT)" --base-time "$(INCREMENTAL_FIXTURE_BASE_TIME)" $(if $(INCREMENTAL_STREAM_PATH),--observation-root "$(INCREMENTAL_STREAM_PATH)/observations",)
+
+initialize-incremental-shadow:
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=initialize-operational-fence --bootstrap-servers=$(BOOTSTRAP_SERVERS) --fence-path=$(INCREMENTAL_FENCE_PATH)"
+	$(INCREMENTAL_CLI) initialize --source "$(INCREMENTAL_SOURCE_DELTA_PATH)" --root "$(INCREMENTAL_ROOT)" --fence "$(INCREMENTAL_FENCE_PATH)" --first-version "$(INCREMENTAL_FIRST_VERSION)" --model-version "$(INCREMENTAL_MODEL_VERSION)" --maximum-undiscovered-versions "$(INCREMENTAL_UNDISCOVERED_LIMIT)" --maximum-unpublished-ready-events "$(INCREMENTAL_UNPUBLISHED_LIMIT)" --maximum-accepted-unprocessed-events "$(INCREMENTAL_ACCEPTED_LIMIT)" --maximum-inference-events-per-tick "$(INCREMENTAL_TICK_LIMIT)" --maximum-cached-source-rows "$(INCREMENTAL_CACHED_ROWS_LIMIT)"
+
+discover-incremental-features:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
+	$(INCREMENTAL_CLI) discover --stream "$(INCREMENTAL_STREAM_PATH)"
+
+publish-incremental-shadow-batch:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" && test -n "$(INCREMENTAL_BATCH_ID)" && test -n "$(INCREMENTAL_BATCH_PATH)" || { echo "Supply stream, batch ID and batch path."; exit 1; }
+	$(INCREMENTAL_CLI) authorize-publish --stream "$(INCREMENTAL_STREAM_PATH)" --batch-id "$(INCREMENTAL_BATCH_ID)"
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=publish --bootstrap-servers=$(BOOTSTRAP_SERVERS) --batch=$(INCREMENTAL_BATCH_PATH) --journal-root=$(INCREMENTAL_STREAM_PATH)/journals --observation-root=$(INCREMENTAL_STREAM_PATH)/observations --maximum-deliveries=$(FEATURE_KAFKA_MAX_DELIVERIES) $(if $(FEATURE_KAFKA_FAIL_AFTER_ACK_AT),--fail-after-ack-before-journal-at=$(FEATURE_KAFKA_FAIL_AFTER_ACK_AT),)"
+
+accept-incremental-shadow-batch:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" && test -n "$(INCREMENTAL_BATCH_ID)" && test -n "$(INCREMENTAL_BATCH_PATH)" || { echo "Supply stream, batch ID and batch path."; exit 1; }
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=accept-operational-batch --bootstrap-servers=$(BOOTSTRAP_SERVERS) --batch=$(INCREMENTAL_BATCH_PATH) --group=sentinel-feature-ready-incremental-shadow-v1 --journal-root=$(INCREMENTAL_STREAM_PATH)/journals --receipt-root=$(INCREMENTAL_STREAM_PATH)/receipts/$(INCREMENTAL_BATCH_ID) --preceding-boundary=$(INCREMENTAL_PRECEDING_BOUNDARY) --acceptance-path=$(INCREMENTAL_STREAM_PATH)/acceptance/$(INCREMENTAL_BATCH_ID).json --observation-root=$(INCREMENTAL_STREAM_PATH)/observations --maximum=$(FEATURE_KAFKA_MAXIMUM) $(if $(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),--fail-after-receipt-before-commit-at=$(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),)"
+
+process-incremental-shadow-work:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
+	$(INCREMENTAL_CLI) process --stream "$(INCREMENTAL_STREAM_PATH)" --model-version "$(INCREMENTAL_MODEL_VERSION)" --score-start "$(INCREMENTAL_SCORE_START)" --score-end "$(INCREMENTAL_SCORE_END)" --maximum "$(INCREMENTAL_TICK_LIMIT)" $(if $(SHADOW_FAIL_AFTER_RESULT),--fail-after-result "$(SHADOW_FAIL_AFTER_RESULT)",)
+
+inspect-incremental-shadow:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
+	$(INCREMENTAL_CLI) inspect --stream "$(INCREMENTAL_STREAM_PATH)"
+
+verify-incremental-shadow:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
+	$(INCREMENTAL_CLI) reconcile --stream "$(INCREMENTAL_STREAM_PATH)"
+	@test -n "$(INCREMENTAL_CANDIDATE_PATH)" || { echo "Supply INCREMENTAL_CANDIDATE_PATH for independent offline scoring."; exit 1; }
+	$(INCREMENTAL_CLI) verify-reference --stream "$(INCREMENTAL_STREAM_PATH)" --candidate "$(INCREMENTAL_CANDIDATE_PATH)"
+
+report-incremental-shadow:
+	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
+	$(INCREMENTAL_CLI) report --stream "$(INCREMENTAL_STREAM_PATH)"
+
+verify-incremental-shadow-integration:
+	@echo "Run fixture waves and the explicit publish/accept/process targets between each wave; then make verify-incremental-shadow. This target never fabricates a continuous experiment."
+	$(MAKE) verify-incremental-shadow
 
 .PHONY: generate-synthetic-corpus inspect-synthetic-corpus scenario-quality publish-synthetic-wave reconcile-synthetic-corpus
 generate-synthetic-corpus:

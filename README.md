@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 26 — Kafka-Triggered Research Shadow Inference & Durable Results**. Phase 25's verified feature-ready notifications can be accepted by a separate shadow consumer group, sealed into a reconciled inbox, and independently processed against exact retained Delta versions by the research-only Registry candidate. Terminal results are durable and compared with the existing Phase 19 prediction ledger. This remains historical synthetic research, not original online feature-ready timing, model serving, calibrated fraud quality or payment enforcement. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`.
+The repository is in **Phase 27 — Incremental Local Shadow Operations**. In addition to the completed Phase 26 historical research path, an isolated local lineage can discover newly committed feature versions, publish and accept successive verified Kafka batches, pause publication when research inference backlog reaches a configured bound, and recover durable logical results after interruption. A separate 25-column local fixture exercises this path; it is not Spark-generated feature evidence. No original online feature-ready timing, production model serving, calibrated fraud quality or payment enforcement is established. The Phase 18 outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`. See [incremental shadow operations](docs/architecture/incremental-shadow-operations.md) for the finite workflow and limits.
 
 ## Local development
 
