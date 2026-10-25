@@ -244,15 +244,27 @@ def verify_reference(
         [{name: row[name] for name in FEATURES} for _, row in scored],
         tracking=registry.tracking,
     )
-    mismatches = [
-        cast(str, event["event_id"])
-        for (event, _), reference in zip(scored, probabilities, strict=True)
-        if abs(
-            cast(float, results[cast(str, event["ready_event_id"])]["fraud_probability_estimate"])
-            - reference
+    differences = [
+        (
+            cast(str, event["event_id"]),
+            abs(
+                cast(
+                    float,
+                    results[cast(str, event["ready_event_id"])]["fraud_probability_estimate"],
+                )
+                - reference
+            ),
         )
-        > 1e-12
+        for (event, _), reference in zip(scored, probabilities, strict=True)
     ]
+    mismatches = [event_id for event_id, difference in differences if difference > 1e-12]
     if mismatches:
         raise AvailabilityError(f"Independent offline scoring differs for {len(mismatches)} events")
-    return {"compared_scored_events": len(scored), "probability_mismatches": 0}
+    return {
+        "compared_scored_events": len(scored),
+        "probability_mismatches": 0,
+        "maximum_absolute_probability_difference": max(
+            (difference for _, difference in differences), default=0.0
+        ),
+        "comparison_tolerance": 1e-12,
+    }

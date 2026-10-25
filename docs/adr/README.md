@@ -66,3 +66,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-039: Kafka feature-ready transport and isolated research consumption](ADR-039-feature-ready-kafka-transport.md)
 - [ADR-040: Kafka-triggered research shadow inference](ADR-040-kafka-triggered-research-shadow-inference.md)
 - [ADR-041: Incremental shadow operations and backpressure](ADR-041-incremental-shadow-operations-and-backpressure.md)
+- [ADR-042: Stateful streaming features to research shadow integration](ADR-042-stateful-streaming-to-shadow-integration.md)

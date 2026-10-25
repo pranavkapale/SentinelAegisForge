@@ -18,6 +18,18 @@ object FeatureReadyOperationalTransport {
   private def partitions: Vector[TopicPartition] =
     (0 until 3).map(new TopicPartition(FeatureReadyCodec.Topic, _)).toVector
 
+  def requireOperationalGroup(group: String): Unit =
+    require(
+      group == Group ||
+        (group.startsWith(s"$Group-") && group.length <= 120 &&
+          group.forall(ch =>
+            (ch >= 'a' && ch <= 'z') ||
+              (ch >= 'A' && ch <= 'Z') ||
+              (ch >= '0' && ch <= '9') || ch == '-'
+          )),
+      "Invalid isolated operational group"
+    )
+
   private def offsets(
       node: com.fasterxml.jackson.databind.JsonNode,
       prefix: String
@@ -26,10 +38,15 @@ object FeatureReadyOperationalTransport {
       partition -> FeatureReadyCodec.integer(node, s"${prefix}_$partition")
     }.toMap
 
-  def boundary(path: Path, identity: FeatureReadyTopicIdentity): Map[Int, Long] = {
+  def boundary(
+      path: Path,
+      identity: FeatureReadyTopicIdentity,
+      group: String = Group
+  ): Map[Int, Long] = {
+    requireOperationalGroup(group)
     val node = FeatureReadyCodec.parseJson(FeatureReadyFiles.read(path))
     require(
-      FeatureReadyCodec.text(node, "group_id") == Group &&
+      FeatureReadyCodec.text(node, "group_id") == group &&
         FeatureReadyCodec.text(node, "cluster_id") == identity.clusterId &&
         FeatureReadyCodec.text(node, "topic_id") == identity.topicId &&
         FeatureReadyCodec.text(node, "topic") == FeatureReadyCodec.Topic,
@@ -63,16 +80,18 @@ object FeatureReadyOperationalTransport {
   def initialize(
       bootstrap: String,
       identity: FeatureReadyTopicIdentity,
-      path: Path
+      path: Path,
+      group: String = Group
   ): Map[Int, Long] = {
+    requireOperationalGroup(group)
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
-      FeatureReadyKafkaConfig.consumer(bootstrap, Group)
+      FeatureReadyKafkaConfig.consumer(bootstrap, group)
     )
     try {
       consumer.assign(partitions.asJava)
       val committed = consumer.committed(partitions.toSet.asJava).asScala.toMap
       if (java.nio.file.Files.exists(path)) {
-        val end = boundary(path, identity)
+        val end = boundary(path, identity, group)
         require(
           partitions.forall { tp =>
             Option(committed(tp)).forall(_.offset() >= end(tp.partition()))
@@ -96,7 +115,7 @@ object FeatureReadyOperationalTransport {
         val end = consumer.endOffsets(partitions.asJava).asScala.toMap
         val fields = Vector[(String, Any)](
           "contract_version" -> FenceVersion,
-          "group_id" -> Group,
+          "group_id" -> group,
           "cluster_id" -> identity.clusterId,
           "topic_id" -> identity.topicId,
           "topic" -> FeatureReadyCodec.Topic
@@ -110,7 +129,7 @@ object FeatureReadyOperationalTransport {
         consumer.commitSync(end.map { case (tp, offset) =>
           tp -> new OffsetAndMetadata(offset.longValue())
         }.asJava)
-        boundary(path, identity)
+        boundary(path, identity, group)
       }
     } finally consumer.close()
   }
@@ -125,19 +144,21 @@ object FeatureReadyOperationalTransport {
       precedingBoundary: Path,
       acceptancePath: Path,
       maximum: Int,
-      failAfterReceiptBeforeCommitAt: Int = -1
+      failAfterReceiptBeforeCommitAt: Int = -1,
+      group: String = Group
   ): Unit = {
-    val start = boundary(precedingBoundary, identity)
+    requireOperationalGroup(group)
+    val start = boundary(precedingBoundary, identity, group)
     val journal = new FeatureReadyPublicationJournal(batch, journalRoot, identity)
     require(
       journal.acknowledged.keySet == batch.byReadyId.keySet,
       "Publication acknowledgements are incomplete"
     )
-    val store = new FeatureReadyReceiptStore(batch, receiptRoot, Group, identity)
-    verifyRetainedBoundary(bootstrap, batch.topic, start)
+    val store = new FeatureReadyReceiptStore(batch, receiptRoot, group, identity)
+    verifyRetainedBoundary(bootstrap, batch.topic, start, group)
     if (!java.nio.file.Files.exists(acceptancePath)) {
       val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
-        FeatureReadyKafkaConfig.consumer(bootstrap, Group)
+        FeatureReadyKafkaConfig.consumer(bootstrap, group)
       )
       val report = new FeatureReadyKafkaConsumer(consumer, batch, store).consume(
         maximum,
@@ -145,10 +166,10 @@ object FeatureReadyOperationalTransport {
         minimumStart = Some(start)
       )
       require(report.committedNext == report.fencedEnd, "Incomplete operational acceptance")
-      seal(batch, identity, journal, store, start, report.fencedEnd, acceptancePath)
-      verifyCommittedBoundary(bootstrap, batch.topic, report.fencedEnd)
+      seal(batch, identity, journal, store, start, report.fencedEnd, acceptancePath, group)
+      verifyCommittedBoundary(bootstrap, batch.topic, report.fencedEnd, group)
     } else {
-      val end = boundary(acceptancePath, identity)
+      val end = boundary(acceptancePath, identity, group)
       val node = FeatureReadyCodec.parseJson(FeatureReadyFiles.read(acceptancePath))
       require(
         FeatureReadyCodec.text(node, "publication_batch_id") == batch.batchId &&
@@ -156,17 +177,18 @@ object FeatureReadyOperationalTransport {
         "Existing operational acceptance conflicts"
       )
       verifyEvidence(batch, journal, store, start, end)
-      verifyCommittedBoundary(bootstrap, batch.topic, end)
+      verifyCommittedBoundary(bootstrap, batch.topic, end, group)
     }
   }
 
   private def verifyRetainedBoundary(
       bootstrap: String,
       topic: String,
-      start: Map[Int, Long]
+      start: Map[Int, Long],
+      group: String
   ): Unit = {
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
-      FeatureReadyKafkaConfig.consumer(bootstrap, Group)
+      FeatureReadyKafkaConfig.consumer(bootstrap, group)
     )
     try {
       consumer.assign(partitions.asJava)
@@ -183,10 +205,11 @@ object FeatureReadyOperationalTransport {
   private def verifyCommittedBoundary(
       bootstrap: String,
       topic: String,
-      end: Map[Int, Long]
+      end: Map[Int, Long],
+      group: String
   ): Unit = {
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
-      FeatureReadyKafkaConfig.consumer(bootstrap, Group)
+      FeatureReadyKafkaConfig.consumer(bootstrap, group)
     )
     try {
       consumer.assign(partitions.asJava)
@@ -249,12 +272,13 @@ object FeatureReadyOperationalTransport {
       store: FeatureReadyReceiptStore,
       start: Map[Int, Long],
       end: Map[Int, Long],
-      path: Path
+      path: Path,
+      group: String
   ): Unit = {
     val physical = verifyEvidence(batch, journal, store, start, end)
     val fields = Vector[(String, Any)](
       "contract_version" -> AcceptanceVersion,
-      "group_id" -> Group,
+      "group_id" -> group,
       "cluster_id" -> identity.clusterId,
       "topic_id" -> identity.topicId,
       "topic" -> batch.topic,

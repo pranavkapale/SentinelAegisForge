@@ -22,6 +22,7 @@ object FeatureReadyKafkaApp {
       options.getOrElse(name, throw new IllegalArgumentException(s"Missing --$name"))
     val mode = required("mode")
     val bootstrap = required("bootstrap-servers")
+    val group = options.getOrElse("group", "sentinel-feature-ready-research-v1")
     val topicIdentity = FeatureReadyKafkaConfig.topic(bootstrap)
     if (mode == "topic") {
       println(
@@ -35,16 +36,18 @@ object FeatureReadyKafkaApp {
       val end = FeatureReadyOperationalTransport.initialize(
         bootstrap,
         topicIdentity,
-        Path.of(required("fence-path"))
+        Path.of(required("fence-path")),
+        options.getOrElse("group", FeatureReadyOperationalTransport.Group)
       )
-      println(s"operational_group=${FeatureReadyOperationalTransport.Group} starting_end=$end")
+      println(
+        s"operational_group=${options.getOrElse("group", FeatureReadyOperationalTransport.Group)} starting_end=$end"
+      )
       return
     }
     val batch = FeatureReadyBatch.load(Path.of(required("batch")))
-    val group = options.getOrElse("group", "sentinel-feature-ready-research-v1")
     mode match {
       case "accept-operational-batch" =>
-        require(group == FeatureReadyOperationalTransport.Group, "Wrong operational group")
+        FeatureReadyOperationalTransport.requireOperationalGroup(group)
         val started = System.nanoTime()
         FeatureReadyOperationalTransport.accept(
           bootstrap,
@@ -55,7 +58,8 @@ object FeatureReadyKafkaApp {
           Path.of(required("preceding-boundary")),
           Path.of(required("acceptance-path")),
           required("maximum").toInt,
-          options.get("fail-after-receipt-before-commit-at").map(_.toInt).getOrElse(-1)
+          options.get("fail-after-receipt-before-commit-at").map(_.toInt).getOrElse(-1),
+          group
         )
         options
           .get("observation-root")

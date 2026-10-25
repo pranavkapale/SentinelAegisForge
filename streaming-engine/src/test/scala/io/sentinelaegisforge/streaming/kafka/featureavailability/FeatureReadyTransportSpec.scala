@@ -348,6 +348,32 @@ final class FeatureReadyTransportSpec extends AnyFunSuite {
     assert(FeatureReadyOperationalTransport.Group != FeatureReadyShadowInbox.Group)
   }
 
+  test("a second isolated operational group cannot reuse the first group's fence") {
+    val group = s"${FeatureReadyOperationalTransport.Group}-phase28-example"
+    val path = Files.createTempDirectory("feature-ready-isolated-fence-").resolve("fence.json")
+    val fields = Seq[(String, Any)](
+      "contract_version" -> FeatureReadyOperationalTransport.FenceVersion,
+      "group_id" -> group,
+      "cluster_id" -> topic.clusterId,
+      "topic_id" -> topic.topicId,
+      "topic" -> FeatureReadyCodec.Topic,
+      "beginning_0" -> 0L,
+      "end_0" -> 5L,
+      "beginning_1" -> 0L,
+      "end_1" -> 3L,
+      "beginning_2" -> 0L,
+      "end_2" -> 0L
+    )
+    assert(FeatureReadyFiles.claim(path, FeatureReadyCodec.objectBytes(fields: _*)))
+    assert(FeatureReadyOperationalTransport.boundary(path, topic, group)(0) == 5L)
+    intercept[IllegalArgumentException] {
+      FeatureReadyOperationalTransport.boundary(path, topic)
+    }
+    intercept[IllegalArgumentException] {
+      FeatureReadyOperationalTransport.requireOperationalGroup("sentinel-feature-ready-shadow-v1")
+    }
+  }
+
   test("operational minimum fence rejects prior offsets without committing them") {
     val source = batch
     val store = new FeatureReadyReceiptStore(

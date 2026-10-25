@@ -158,6 +158,7 @@ SHADOW_FAIL_AFTER_RESULT ?=
 INCREMENTAL_SOURCE_DELTA_PATH ?= $(CURDIR)/.local/phase27/statistical-fixture
 INCREMENTAL_ROOT ?= $(CURDIR)/.local/phase27/streams
 INCREMENTAL_FENCE_PATH ?= $(CURDIR)/.local/phase27/operational-fence.json
+INCREMENTAL_GROUP ?= sentinel-feature-ready-incremental-shadow-v1
 INCREMENTAL_STREAM_PATH ?=
 INCREMENTAL_BATCH_ID ?=
 INCREMENTAL_BATCH_PATH ?=
@@ -193,6 +194,14 @@ SCENARIO_VALIDATED_PATH ?=
 SCENARIO_DEDUPLICATED_PATH ?=
 SCENARIO_ROLLING_PATH ?=
 SCENARIO_STATISTICAL_PATH ?=
+PHASE28_ROOT ?= $(CURDIR)/.local/phase28/integrations
+PHASE28_CORPUS_PATH ?=
+PHASE28_TRANSACTION_FENCE ?=
+PHASE28_INTEGRATION_PATH ?=
+PHASE28_STREAM_PATH ?=
+PHASE28_WAVE ?=
+PHASE28_EVENT_ID ?=
+PHASE28_RECOVERY_EVIDENCE ?=
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -600,8 +609,8 @@ append-incremental-fixture:
 	$(INCREMENTAL_CLI) fixture-append --source "$(INCREMENTAL_SOURCE_DELTA_PATH)" --seed "$(INCREMENTAL_FIXTURE_SEED)" --first-index "$(INCREMENTAL_FIXTURE_FIRST_INDEX)" --count "$(INCREMENTAL_FIXTURE_COUNT)" --base-time "$(INCREMENTAL_FIXTURE_BASE_TIME)" $(if $(INCREMENTAL_STREAM_PATH),--observation-root "$(INCREMENTAL_STREAM_PATH)/observations",)
 
 initialize-incremental-shadow:
-	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=initialize-operational-fence --bootstrap-servers=$(BOOTSTRAP_SERVERS) --fence-path=$(INCREMENTAL_FENCE_PATH)"
-	$(INCREMENTAL_CLI) initialize --source "$(INCREMENTAL_SOURCE_DELTA_PATH)" --root "$(INCREMENTAL_ROOT)" --fence "$(INCREMENTAL_FENCE_PATH)" --first-version "$(INCREMENTAL_FIRST_VERSION)" --model-version "$(INCREMENTAL_MODEL_VERSION)" --maximum-undiscovered-versions "$(INCREMENTAL_UNDISCOVERED_LIMIT)" --maximum-unpublished-ready-events "$(INCREMENTAL_UNPUBLISHED_LIMIT)" --maximum-accepted-unprocessed-events "$(INCREMENTAL_ACCEPTED_LIMIT)" --maximum-inference-events-per-tick "$(INCREMENTAL_TICK_LIMIT)" --maximum-cached-source-rows "$(INCREMENTAL_CACHED_ROWS_LIMIT)"
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=initialize-operational-fence --bootstrap-servers=$(BOOTSTRAP_SERVERS) --fence-path=$(INCREMENTAL_FENCE_PATH) --group=$(INCREMENTAL_GROUP)"
+	$(INCREMENTAL_CLI) initialize --source "$(INCREMENTAL_SOURCE_DELTA_PATH)" --root "$(INCREMENTAL_ROOT)" --fence "$(INCREMENTAL_FENCE_PATH)" --first-version "$(INCREMENTAL_FIRST_VERSION)" --model-version "$(INCREMENTAL_MODEL_VERSION)" --group "$(INCREMENTAL_GROUP)" --maximum-undiscovered-versions "$(INCREMENTAL_UNDISCOVERED_LIMIT)" --maximum-unpublished-ready-events "$(INCREMENTAL_UNPUBLISHED_LIMIT)" --maximum-accepted-unprocessed-events "$(INCREMENTAL_ACCEPTED_LIMIT)" --maximum-inference-events-per-tick "$(INCREMENTAL_TICK_LIMIT)" --maximum-cached-source-rows "$(INCREMENTAL_CACHED_ROWS_LIMIT)"
 
 discover-incremental-features:
 	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
@@ -614,7 +623,7 @@ publish-incremental-shadow-batch:
 
 accept-incremental-shadow-batch:
 	@test -n "$(INCREMENTAL_STREAM_PATH)" && test -n "$(INCREMENTAL_BATCH_ID)" && test -n "$(INCREMENTAL_BATCH_PATH)" || { echo "Supply stream, batch ID and batch path."; exit 1; }
-	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=accept-operational-batch --bootstrap-servers=$(BOOTSTRAP_SERVERS) --batch=$(INCREMENTAL_BATCH_PATH) --group=sentinel-feature-ready-incremental-shadow-v1 --journal-root=$(INCREMENTAL_STREAM_PATH)/journals --receipt-root=$(INCREMENTAL_STREAM_PATH)/receipts/$(INCREMENTAL_BATCH_ID) --preceding-boundary=$(INCREMENTAL_PRECEDING_BOUNDARY) --acceptance-path=$(INCREMENTAL_STREAM_PATH)/acceptance/$(INCREMENTAL_BATCH_ID).json --observation-root=$(INCREMENTAL_STREAM_PATH)/observations --maximum=$(FEATURE_KAFKA_MAXIMUM) $(if $(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),--fail-after-receipt-before-commit-at=$(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),)"
+	cd streaming-engine && sbt "runMain $(FEATURE_KAFKA_APP) --mode=accept-operational-batch --bootstrap-servers=$(BOOTSTRAP_SERVERS) --batch=$(INCREMENTAL_BATCH_PATH) --group=$(INCREMENTAL_GROUP) --journal-root=$(INCREMENTAL_STREAM_PATH)/journals --receipt-root=$(INCREMENTAL_STREAM_PATH)/receipts/$(INCREMENTAL_BATCH_ID) --preceding-boundary=$(INCREMENTAL_PRECEDING_BOUNDARY) --acceptance-path=$(INCREMENTAL_STREAM_PATH)/acceptance/$(INCREMENTAL_BATCH_ID).json --observation-root=$(INCREMENTAL_STREAM_PATH)/observations --maximum=$(FEATURE_KAFKA_MAXIMUM) $(if $(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),--fail-after-receipt-before-commit-at=$(FEATURE_KAFKA_FAIL_AFTER_RECEIPT_AT),)"
 
 process-incremental-shadow-work:
 	@test -n "$(INCREMENTAL_STREAM_PATH)" || { echo "Supply INCREMENTAL_STREAM_PATH."; exit 1; }
@@ -659,3 +668,52 @@ publish-synthetic-wave:
 reconcile-synthetic-corpus:
 	@test -n "$(SCENARIO_CORPUS_PATH)" && test -n "$(SCENARIO_VALIDATED_PATH)" && test -n "$(SCENARIO_DEDUPLICATED_PATH)" && test -n "$(SCENARIO_ROLLING_PATH)" && test -n "$(SCENARIO_STATISTICAL_PATH)" || { echo "Supply the corpus and all four isolated Delta paths."; exit 1; }
 	cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.synthetic.cli reconcile --corpus "$(SCENARIO_CORPUS_PATH)" --validated "$(SCENARIO_VALIDATED_PATH)" --deduplicated "$(SCENARIO_DEDUPLICATED_PATH)" --rolling "$(SCENARIO_ROLLING_PATH)" --statistical "$(SCENARIO_STATISTICAL_PATH)"
+
+# Phase 28 is explicit and Docker-dependent; ordinary `make verify` remains local-only.
+.PHONY: capture-phase28-transaction-fence initialize-stateful-shadow-integration prime-stateful-shadow-ingestion run-stateful-shadow-wave reconcile-stateful-shadow-wave handoff-stateful-shadow-wave inspect-stateful-shadow-transport verify-stateful-shadow-integration trace-stateful-shadow-event build-stateful-shadow-evidence inspect-stateful-shadow-evidence
+PHASE28_CLI = cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.stateful_shadow_integration.cli
+
+capture-phase28-transaction-fence:
+	@test -n "$(PHASE28_TRANSACTION_FENCE)" || { echo "Supply a fresh PHASE28_TRANSACTION_FENCE path."; exit 1; }
+	$(MAKE) verify-infra
+	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.kafka.ingestion.TransactionTopicFenceApp --bootstrap-servers=$(BOOTSTRAP_SERVERS) --output-path=$(PHASE28_TRANSACTION_FENCE)"
+
+initialize-stateful-shadow-integration:
+	@test -n "$(PHASE28_CORPUS_PATH)" && test -n "$(PHASE28_TRANSACTION_FENCE)" || { echo "Supply PHASE28_CORPUS_PATH and PHASE28_TRANSACTION_FENCE."; exit 1; }
+	$(PHASE28_CLI) initialize --corpus "$(PHASE28_CORPUS_PATH)" --root "$(PHASE28_ROOT)" --transaction-fence "$(PHASE28_TRANSACTION_FENCE)"
+
+prime-stateful-shadow-ingestion:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" || { echo "Supply PHASE28_INTEGRATION_PATH."; exit 1; }
+	$(PHASE28_CLI) prime --integration "$(PHASE28_INTEGRATION_PATH)"
+
+run-stateful-shadow-wave:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_WAVE)" || { echo "Supply PHASE28_INTEGRATION_PATH and PHASE28_WAVE."; exit 1; }
+	$(PHASE28_CLI) run-wave --integration "$(PHASE28_INTEGRATION_PATH)" --wave "$(PHASE28_WAVE)"
+
+reconcile-stateful-shadow-wave:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_WAVE)" || { echo "Supply PHASE28_INTEGRATION_PATH and PHASE28_WAVE."; exit 1; }
+	$(PHASE28_CLI) inspect-wave --integration "$(PHASE28_INTEGRATION_PATH)" --wave "$(PHASE28_WAVE)"
+
+handoff-stateful-shadow-wave:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_STREAM_PATH)" && test -n "$(PHASE28_WAVE)" || { echo "Supply PHASE28_INTEGRATION_PATH, PHASE28_STREAM_PATH and PHASE28_WAVE."; exit 1; }
+	$(PHASE28_CLI) handoff --integration "$(PHASE28_INTEGRATION_PATH)" --stream "$(PHASE28_STREAM_PATH)" --wave "$(PHASE28_WAVE)" $(if $(PHASE28_PAUSE_INFERENCE),--pause-inference,) $(if $(PHASE28_DEMONSTRATE_BACKPRESSURE),--demonstrate-backpressure,)
+
+inspect-stateful-shadow-transport:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_STREAM_PATH)" || { echo "Supply PHASE28_INTEGRATION_PATH and PHASE28_STREAM_PATH."; exit 1; }
+	$(PHASE28_CLI) inspect-transport --integration "$(PHASE28_INTEGRATION_PATH)" --stream "$(PHASE28_STREAM_PATH)"
+
+verify-stateful-shadow-integration:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_STREAM_PATH)" || { echo "Supply PHASE28_INTEGRATION_PATH and PHASE28_STREAM_PATH."; exit 1; }
+	$(PHASE28_CLI) verify-final --integration "$(PHASE28_INTEGRATION_PATH)" --stream "$(PHASE28_STREAM_PATH)"
+
+trace-stateful-shadow-event:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_STREAM_PATH)" && test -n "$(PHASE28_EVENT_ID)" || { echo "Supply integration, stream and event ID."; exit 1; }
+	$(PHASE28_CLI) trace --integration "$(PHASE28_INTEGRATION_PATH)" --stream "$(PHASE28_STREAM_PATH)" --event-id "$(PHASE28_EVENT_ID)"
+
+build-stateful-shadow-evidence:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" && test -n "$(PHASE28_STREAM_PATH)" && test -n "$(INCREMENTAL_CANDIDATE_PATH)" && test -n "$(PHASE28_RECOVERY_EVIDENCE)" || { echo "Supply integration, stream, candidate and measured recovery evidence."; exit 1; }
+	$(PHASE28_CLI) build-evidence --integration "$(PHASE28_INTEGRATION_PATH)" --stream "$(PHASE28_STREAM_PATH)" --candidate "$(INCREMENTAL_CANDIDATE_PATH)" --recovery "$(PHASE28_RECOVERY_EVIDENCE)"
+
+inspect-stateful-shadow-evidence:
+	@test -n "$(PHASE28_INTEGRATION_PATH)" || { echo "Supply PHASE28_INTEGRATION_PATH."; exit 1; }
+	$(PHASE28_CLI) inspect-evidence --integration "$(PHASE28_INTEGRATION_PATH)"

@@ -48,7 +48,7 @@ def _write(path: Path, value: dict[str, object]) -> None:
     path.write_bytes(canonical(value))
 
 
-def _stream(tmp_path: Path, *, accepted_limit: int = 8) -> tuple[Path, Path]:
+def _stream(tmp_path: Path, *, accepted_limit: int = 8, group: str = GROUP) -> tuple[Path, Path]:
     source = tmp_path / "source"
     initialize_source(source)
     fence = tmp_path / "fence.json"
@@ -56,7 +56,7 @@ def _stream(tmp_path: Path, *, accepted_limit: int = 8) -> tuple[Path, Path]:
         fence,
         {
             "contract_version": "feature-ready-operational-fence-v1",
-            "group_id": GROUP,
+            "group_id": group,
             "cluster_id": "cluster-a",
             "topic_id": "topic-a",
             "topic": "features.ready",
@@ -72,6 +72,7 @@ def _stream(tmp_path: Path, *, accepted_limit: int = 8) -> tuple[Path, Path]:
         "a" * 64,
         "b" * 64,
         Limits(maximum_accepted_unprocessed_events=accepted_limit),
+        group,
     )
     return source, tmp_path / "streams" / cast(str, manifest["stream_id"])
 
@@ -319,6 +320,23 @@ def test_request_identity_is_stream_level_not_batch_level() -> None:
     a = logical_request_id("1" * 64, "a" * 64, "b" * 64)
     assert a == logical_request_id("1" * 64, "a" * 64, "b" * 64)
     assert a != logical_request_id("1" * 64, "c" * 64, "b" * 64)
+
+
+def test_isolated_operational_group_has_distinct_identity(tmp_path: Path) -> None:
+    group = f"{GROUP}-phase28-example"
+    _source, stream = _stream(tmp_path, group=group)
+    assert read_object(stream / "identity" / "stream_manifest.json")["group_id"] == group
+    with pytest.raises(AvailabilityError, match="starting fence"):
+        initialize(
+            tmp_path / "source",
+            tmp_path / "other-streams",
+            tmp_path / "fence.json",
+            0,
+            "a" * 64,
+            "b" * 64,
+            Limits(),
+            GROUP,
+        )
 
 
 def test_invalid_bounds_and_unsupported_fixture_inputs(tmp_path: Path) -> None:

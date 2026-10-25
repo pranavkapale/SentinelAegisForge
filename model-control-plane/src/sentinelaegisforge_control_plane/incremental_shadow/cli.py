@@ -16,7 +16,7 @@ from sentinelaegisforge_control_plane.registry.run import (
 )
 
 from .fixture import append_wave, initialize_source
-from .operations import Limits, discover_next, initialize
+from .operations import GROUP, Limits, discover_next, initialize
 from .progress import authorize_publication, progress, reconcile
 from .worker import process, verify_reference
 
@@ -39,6 +39,7 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--fence", type=Path, required=True)
     init.add_argument("--first-version", type=int, required=True)
     init.add_argument("--model-version", default="1")
+    init.add_argument("--group", default=GROUP)
     init.add_argument("--maximum-undiscovered-versions", type=int, default=8)
     init.add_argument("--maximum-unpublished-ready-events", type=int, default=500)
     init.add_argument("--maximum-accepted-unprocessed-events", type=int, default=200)
@@ -105,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
                     maximum_inference_events_per_tick=args.maximum_inference_events_per_tick,
                     maximum_cached_source_rows=args.maximum_cached_source_rows,
                 ),
+                args.group,
             )
         elif args.command == "discover":
             started = time.perf_counter()

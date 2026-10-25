@@ -18,7 +18,6 @@ from sentinelaegisforge_control_plane.availability.outbox import canonical, insp
 from .operations import (
     ACCEPTANCE_CONTRACT,
     CONTRACT,
-    GROUP,
     RESULT_CONTRACT,
     Limits,
     inspect,
@@ -50,7 +49,7 @@ def inspect_acceptance(
     accepted = read_object(path)
     expected = {
         "contract_version": ACCEPTANCE_CONTRACT,
-        "group_id": GROUP,
+        "group_id": manifest["group_id"],
         "cluster_id": manifest["cluster_id"],
         "topic_id": manifest["topic_id"],
         "topic": manifest["topic"],
@@ -75,7 +74,7 @@ def inspect_acceptance(
         "receipt_store_contract_version": "kafka-feature-ready-receipt-store-v1",
         "publication_batch_id": batch_id,
         "outbox_id": outbox["outbox_id"],
-        "group_id": GROUP,
+        "group_id": manifest["group_id"],
         "topic": manifest["topic"],
         "cluster_id": manifest["cluster_id"],
         "topic_id": manifest["topic_id"],

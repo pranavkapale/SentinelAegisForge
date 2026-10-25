@@ -53,12 +53,24 @@ class Limits:
             raise AvailabilityError("Only one active publication batch is supported")
 
 
-def _fence(path: Path) -> dict[str, object]:
+def _fence(path: Path, group: str = GROUP) -> dict[str, object]:
+    if not (
+        group == GROUP
+        or (
+            group.startswith(f"{GROUP}-")
+            and len(group) <= 120
+            and all(
+                character.isascii() and (character.isalnum() or character == "-")
+                for character in group
+            )
+        )
+    ):
+        raise AvailabilityError("Invalid isolated operational group")
     value = read_object(path)
     if (
         value.get("contract_version") != FENCE_CONTRACT
         or value.get("topic") != TOPIC
-        or value.get("group_id") != GROUP
+        or value.get("group_id") != group
         or not all(
             isinstance(value.get(name), str) and value[name] for name in ("cluster_id", "topic_id")
         )
@@ -83,12 +95,13 @@ def initialize(
     candidate_id: str,
     model_tree_sha256: str,
     limits: Limits,
+    group: str = GROUP,
 ) -> dict[str, object]:
     """Bind a fresh source and stable Kafka fence before any incremental discovery."""
     if type(first_version) is not int or first_version < 0:
         raise AvailabilityError("First Delta version must be explicit and nonnegative")
     snapshot = StatisticalFeatureSource(source, first_version).read()
-    fence = _fence(fence_path)
+    fence = _fence(fence_path, group)
     if not all(
         len(value) == 64 and all(c in "0123456789abcdef" for c in value)
         for value in (candidate_id, model_tree_sha256)
@@ -103,7 +116,7 @@ def initialize(
         "topic": TOPIC,
         "cluster_id": fence["cluster_id"],
         "topic_id": fence["topic_id"],
-        "group_id": GROUP,
+        "group_id": group,
         "candidate_id": candidate_id,
         "model_tree_sha256": model_tree_sha256,
         "logic_version": "bounded-sequential-v1",
@@ -134,11 +147,12 @@ def inspect(root: Path) -> dict[str, object]:
     }
     if (
         manifest.get("contract_version") != CONTRACT
-        or manifest.get("group_id") != GROUP
+        or not isinstance(manifest.get("group_id"), str)
+        or not (manifest["group_id"] == GROUP or str(manifest["group_id"]).startswith(f"{GROUP}-"))
         or manifest.get("topic") != TOPIC
         or digest(basis) != manifest.get("stream_id")
         or root.name != manifest["stream_id"]
-        or digest(_fence(Path(cast(str, manifest["fence_path"]))))
+        or digest(_fence(Path(cast(str, manifest["fence_path"])), cast(str, manifest["group_id"])))
         != manifest.get("fence_fingerprint")
     ):
         raise AvailabilityError("Operational stream identity or Kafka fence changed")
