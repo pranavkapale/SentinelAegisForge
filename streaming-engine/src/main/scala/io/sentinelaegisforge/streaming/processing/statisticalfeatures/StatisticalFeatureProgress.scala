@@ -8,6 +8,7 @@ object StatisticalFeatureProgress {
   def report(progress: Seq[StreamingQueryProgress]): Unit = {
     if (progress.isEmpty) println("Statistical feature progress: no micro-batch executed")
     progress.foreach { batch =>
+      println(s"Statistical feature progress JSON: ${batch.json}")
       val watermark = Option(batch.eventTime)
         .flatMap(_.asScala.get("watermark"))
         .getOrElse("unavailable")

@@ -1,6 +1,7 @@
 package io.sentinelaegisforge.streaming.kafka.featureavailability
 
 import java.nio.file.Path
+import java.nio.charset.StandardCharsets
 
 import org.apache.kafka.clients.consumer.{KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -179,6 +180,21 @@ object FeatureReadyKafkaApp {
           consumer.assign(partitions.asJava)
           val beginning = consumer.beginningOffsets(partitions.asJava).asScala.toMap
           val end = consumer.endOffsets(partitions.asJava).asScala.toMap
+          val retentionFields = Vector[(String, Any)](
+            "topic" -> batch.topic,
+            "topic_id" -> topicIdentity.topicId,
+            "cluster_id" -> topicIdentity.clusterId,
+            "partition_count" -> topicIdentity.partitions
+          ) ++ partitions.flatMap { tp =>
+            Vector(
+              s"beginning_${tp.partition()}" -> beginning(tp).longValue(),
+              s"end_${tp.partition()}" -> end(tp).longValue()
+            )
+          }
+          println(
+            "Feature-ready retention JSON: " +
+              new String(FeatureReadyCodec.objectBytes(retentionFields: _*), StandardCharsets.UTF_8)
+          )
           println(s"topic_id=${topicIdentity.topicId} beginning=${beginning.map {
               case (tp, offset) => tp.partition() -> offset
             }} end=${end.map { case (tp, offset) => tp.partition() -> offset }}")

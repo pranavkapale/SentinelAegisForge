@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pyarrow as pa
+import pyarrow.fs as pa_fs
 from deltalake import DeltaTable
 
 from .dataset_contract import feature_rows, schema_fingerprint
@@ -37,7 +38,11 @@ class StatisticalFeatureSource:
             # The handle is pinned to this version; do not call update_incremental during a build.
             version = delta.version()
             protocol = delta.protocol()
-            table = delta.to_pyarrow_table()
+            # This contract accepts local Paths. Use Arrow's native local filesystem,
+            # rooted at the pinned Delta table, to avoid Python-filesystem callbacks
+            # racing interpreter shutdown (Arrow thread-pool/GIL finalization).
+            filesystem = pa_fs.SubTreeFileSystem(str(self.delta_path), pa_fs.LocalFileSystem())
+            table = delta.to_pyarrow_table(filesystem=filesystem)
         except Exception as error:
             raise FeatureSourceError(
                 f"Cannot read Delta feature source {self.delta_path}: {error}"

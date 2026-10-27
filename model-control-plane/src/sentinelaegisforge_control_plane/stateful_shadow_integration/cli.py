@@ -204,6 +204,8 @@ def _inspect_transport(args: argparse.Namespace) -> dict[str, object]:
 def _drain(
     stream: Path, identity: dict[str, object], wave: int, timings: list[dict[str, object]]
 ) -> None:
+    limits = cast(dict[str, int], inspect_stream(stream)["limits"])
+    maximum = min(500, limits["maximum_inference_events_per_tick"])
     log_dir = Path(cast(str, identity["integration_path"])) / "logs"
     tick = len(list(log_dir.glob(f"process-incremental-shadow-work-wave-{wave}-tick-*.log")))
     initial = tick
@@ -216,7 +218,7 @@ def _drain(
             {
                 "INCREMENTAL_STREAM_PATH": str(stream),
                 "INCREMENTAL_MODEL_VERSION": "1",
-                "INCREMENTAL_TICK_LIMIT": "500",
+                "INCREMENTAL_TICK_LIMIT": str(maximum),
                 "INCREMENTAL_SCORE_START": "2030-01-04T00:00:00Z",
                 "INCREMENTAL_SCORE_END": "2030-01-10T00:00:00Z",
             },

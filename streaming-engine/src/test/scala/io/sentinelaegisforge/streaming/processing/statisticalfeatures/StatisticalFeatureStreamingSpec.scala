@@ -12,6 +12,8 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import io.sentinelaegisforge.streaming.kafka.ingestion.TransactionSparkSession
 import io.sentinelaegisforge.streaming.persistence.delta.{
+  DeltaPostCommitHook,
+  IntentionalDeltaPostCommitFailure,
   TransactionCustomerFeatureDeltaSchema,
   TransactionStatisticalFeatureDeltaSchema,
   TransactionStatisticalFeatureDeltaSink
@@ -52,9 +54,100 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
     assert(config.checkpointLocation == ".local/checkpoints/customer-statistical-features-v2")
     assert(config.deltaTxnAppId == "sentinel-transaction-statistical-features-v2")
     assert(config.inactivityTimeout.toHours == 24L)
+    assert(config.failAfterDeltaBatchId.isEmpty)
     assert(
       StatisticalFeatureConfig.RequiredStateStoreProvider.endsWith("RocksDBStateStoreProvider")
     )
+  }
+
+  test("statistical post-commit fault option is opt-in and rejects invalid values") {
+    val enabled = TransactionStatisticalFeatureApp
+      .parseArguments(Array("--fail-after-delta-batch-id=2"))
+      .fold(fail(_), identity)
+    assert(enabled.failAfterDeltaBatchId.contains(2L))
+    assert(
+      TransactionStatisticalFeatureApp
+        .parseArguments(Array("--fail-after-delta-batch-id=-1"))
+        .left
+        .exists(_.contains("non-negative"))
+    )
+    assert(
+      TransactionStatisticalFeatureApp
+        .parseArguments(Array("--fail-after-delta-batch-id=invalid"))
+        .left
+        .exists(_.contains("integer"))
+    )
+    assert(
+      TransactionStatisticalFeatureApp
+        .parseArguments(Array("--unsupported=value"))
+        .left
+        .exists(_.contains("Unsupported arguments"))
+    )
+  }
+
+  test("statistical post-commit hook fires after a durable Delta append and retry is suppressed") {
+    val root = Files.createTempDirectory("sentinel-statistical-postcommit")
+    val target = root.resolve("statistical").toString
+    val appId = "sentinel-test-statistical-postcommit-v1"
+    val original = input("a", 0L, "12:00", "100.0000")
+    val record = TransactionStatisticalFeatures(original, 0L, None, None, None, "NO_HISTORY")
+    val session = spark
+    import session.implicits._
+    val faulting = new TransactionStatisticalFeatureDeltaSink(
+      target,
+      appId,
+      DeltaPostCommitHook.FailAfterBatch(0L)
+    )
+    intercept[IntentionalDeltaPostCommitFailure](faulting.writeBatch(Seq(record).toDS(), 0L))
+    assert(spark.read.format("delta").load(target).count() == 1L)
+    assert(DeltaTable.forPath(spark, target).history().count() == 1L)
+    new TransactionStatisticalFeatureDeltaSink(target, appId)
+      .writeBatch(Seq(record).toDS(), 0L)
+    assert(spark.read.format("delta").load(target).count() == 1L)
+    assert(DeltaTable.forPath(spark, target).history().count() == 1L)
+
+    val unrelated = root.resolve("unrelated").toString
+    new TransactionStatisticalFeatureDeltaSink(
+      unrelated,
+      "sentinel-test-statistical-unrelated-v1",
+      DeltaPostCommitHook.FailAfterBatch(1L)
+    ).writeBatch(Seq(record).toDS(), 0L)
+    assert(spark.read.format("delta").load(unrelated).count() == 1L)
+  }
+
+  test("stateful statistical checkpoint recovers after a real post-commit failure") {
+    val root = Files.createTempDirectory("sentinel-statistical-stateful-fault")
+    val source = root.resolve("rolling").toString
+    val target = root.resolve("statistical").toString
+    val checkpoint = root.resolve("checkpoint").toString
+    val appId = "sentinel-test-statistical-stateful-fault-v1"
+    appendSource(
+      source,
+      Seq(input("a", 0L, "12:00", "100"), input("a", 1L, "12:01", "200"))
+    )
+    val failure = intercept[Exception] {
+      runQuery(source, target, checkpoint, appId, DeltaPostCommitHook.FailAfterBatch(0L))
+    }
+    assert(
+      Iterator
+        .iterate[Throwable](failure)(_.getCause)
+        .takeWhile(_ != null)
+        .exists(_.isInstanceOf[IntentionalDeltaPostCommitFailure])
+    )
+    val before = spark.read.format("delta").load(target).collect().toVector
+    assert(before.size == 2)
+    assert(DeltaTable.forPath(spark, target).history().count() == 1L)
+
+    runQuery(source, target, checkpoint, appId)
+    assert(spark.read.format("delta").load(target).collect().toVector.toSet == before.toSet)
+    assert(DeltaTable.forPath(spark, target).history().count() == 1L)
+
+    appendSource(source, Seq(input("a", 2L, "12:02", "300")))
+    runQuery(source, target, checkpoint, appId)
+    val continuing = row(target, "a", 2L)
+    assert(continuing.getAs[Long]("prior_amount_observation_count") == 2L)
+    assertClose(continuing.getAs[Double]("prior_amount_mean"), 150.0)
+    assert(spark.read.format("delta").load(target).count() == 3L)
   }
 
   test("Delta stream restores prior Welford state across runs and keeps customers independent") {
@@ -200,7 +293,8 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
       source: String,
       target: String,
       checkpoint: String,
-      appId: String
+      appId: String,
+      hook: DeltaPostCommitHook = DeltaPostCommitHook.NoOp
   ) = {
     val input = spark.readStream.format("delta").load(source)
     val features = StatisticalFeatureTransformer.transform(
@@ -208,7 +302,7 @@ final class StatisticalFeatureStreamingSpec extends AnyFunSuite with BeforeAndAf
       "10 minutes",
       java.time.Duration.ofHours(24L)
     )
-    val sink = new TransactionStatisticalFeatureDeltaSink(target, appId)
+    val sink = new TransactionStatisticalFeatureDeltaSink(target, appId, hook)
     val query = features.writeStream
       .queryName("statistical-feature-test")
       .option("checkpointLocation", checkpoint)

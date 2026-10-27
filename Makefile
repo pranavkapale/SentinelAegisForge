@@ -24,6 +24,7 @@ STATISTICAL_FEATURE_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_statistical
 STATISTICAL_FEATURE_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/customer-statistical-features-v2
 STATISTICAL_FEATURE_DELTA_TXN_APP_ID ?= sentinel-transaction-statistical-features-v2
 STATISTICAL_FEATURE_INACTIVITY ?= 24 hours
+STATISTICAL_FAIL_AFTER_DELTA_BATCH_ID ?=
 RISK_DELTA_PATH ?= $(CURDIR)/.local/delta/transaction_risk_decisions
 RISK_CHECKPOINT_DIR ?= $(CURDIR)/.local/checkpoints/risk-decisions-v1
 RISK_DELTA_TXN_APP_ID ?= sentinel-transaction-risk-decisions-v1
@@ -202,6 +203,27 @@ PHASE28_STREAM_PATH ?=
 PHASE28_WAVE ?=
 PHASE28_EVENT_ID ?=
 PHASE28_RECOVERY_EVIDENCE ?=
+PHASE29_INTEGRATION_PATH ?=
+PHASE29_STREAM_PATH ?=
+PHASE29_WAVE ?=
+PHASE29_FAULT_BATCH_ID ?= 0
+PHASE29_DOSSIER_PATH ?=
+PHASE29_CURRENT_FENCE ?=
+PHASE29_READY_OFFSETS_LOG ?=
+PHASE29_A_INTEGRATION ?=
+PHASE29_B_INTEGRATION ?=
+PHASE29_C_INTEGRATION ?=
+PHASE29_D_INTEGRATION ?=
+PHASE29_A_STREAM ?=
+PHASE29_B_STREAM ?=
+PHASE29_C_STREAM ?=
+PHASE29_D_STREAM ?=
+PHASE29_OUTAGE_EVIDENCE ?=
+PHASE29_BROKER_BATCH_ID ?=
+PHASE29_BROKER_FAILURE_LOG ?=
+PHASE29_BROKER_EXIT_CODE ?=
+PHASE29_CANDIDATE ?= $(CURDIR)/.local/ml/model-candidates/b4fff4f1f74818165d04bae094b89f7c7b8dc7367d6e3dad10465b1a6160fadb
+PHASE29_DOSSIER_ROOT ?= $(CURDIR)/.local/phase29/reliability
 FAIL_AFTER_DELTA_BATCH_ID ?=
 STARTING_OFFSETS ?= earliest
 SPARK_MASTER ?= local[*]
@@ -287,7 +309,7 @@ reset-rolling-features:
 	bash scripts/reset-local-rolling-features.sh
 
 process-statistical-features:
-	cd streaming-engine && WATERMARK_DELAY="$(WATERMARK_DELAY)" STATISTICAL_FEATURE_INACTIVITY="$(STATISTICAL_FEATURE_INACTIVITY)" sbt "runMain io.sentinelaegisforge.streaming.processing.statisticalfeatures.TransactionStatisticalFeatureApp --source-delta-path=$(FEATURE_DELTA_PATH) --target-delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --checkpoint-location=$(STATISTICAL_FEATURE_CHECKPOINT_DIR) --delta-txn-app-id=$(STATISTICAL_FEATURE_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER)"
+	cd streaming-engine && WATERMARK_DELAY="$(WATERMARK_DELAY)" STATISTICAL_FEATURE_INACTIVITY="$(STATISTICAL_FEATURE_INACTIVITY)" sbt "runMain io.sentinelaegisforge.streaming.processing.statisticalfeatures.TransactionStatisticalFeatureApp --source-delta-path=$(FEATURE_DELTA_PATH) --target-delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --checkpoint-location=$(STATISTICAL_FEATURE_CHECKPOINT_DIR) --delta-txn-app-id=$(STATISTICAL_FEATURE_DELTA_TXN_APP_ID) --spark-master=$(SPARK_MASTER) $(if $(STATISTICAL_FAIL_AFTER_DELTA_BATCH_ID),--fail-after-delta-batch-id=$(STATISTICAL_FAIL_AFTER_DELTA_BATCH_ID),)"
 
 inspect-statistical-features:
 	cd streaming-engine && sbt "runMain io.sentinelaegisforge.streaming.processing.statisticalfeatures.TransactionStatisticalFeatureInspectionApp --delta-path=$(STATISTICAL_FEATURE_DELTA_PATH) --spark-master=$(SPARK_MASTER)"
@@ -717,3 +739,67 @@ build-stateful-shadow-evidence:
 inspect-stateful-shadow-evidence:
 	@test -n "$(PHASE28_INTEGRATION_PATH)" || { echo "Supply PHASE28_INTEGRATION_PATH."; exit 1; }
 	$(PHASE28_CLI) inspect-evidence --integration "$(PHASE28_INTEGRATION_PATH)"
+
+# Phase 29 operations are explicit and reuse Phase 28's isolated lineages.
+.PHONY: verify-reliability-unit run-reliability-wave inject-statistical-postcommit-failure verify-statistical-postcommit-recovery verify-reliability-integration record-reliability-broker-failure verify-reliability-outage inspect-streaming-state inspect-source-retention inspect-reliability-experiment build-reliability-dossier inspect-reliability-dossier
+PHASE29_CLI = cd model-control-plane && uv run --locked python -m sentinelaegisforge_control_plane.reliability.cli
+
+verify-reliability-unit:
+	cd model-control-plane && uv run --locked pytest tests/test_reliability.py
+
+run-reliability-wave:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_WAVE)" || { echo "Supply PHASE29_INTEGRATION_PATH and PHASE29_WAVE."; exit 1; }
+	$(PHASE29_CLI) run-wave --integration "$(PHASE29_INTEGRATION_PATH)" --wave "$(PHASE29_WAVE)"
+
+inject-statistical-postcommit-failure:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_WAVE)" || { echo "Supply PHASE29_INTEGRATION_PATH and PHASE29_WAVE."; exit 1; }
+	$(PHASE29_CLI) fault-wave --integration "$(PHASE29_INTEGRATION_PATH)" --wave "$(PHASE29_WAVE)" --batch-id "$(PHASE29_FAULT_BATCH_ID)"
+
+verify-statistical-postcommit-recovery:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" || { echo "Supply PHASE29_INTEGRATION_PATH."; exit 1; }
+	$(PHASE29_CLI) inspect-recovery --integration "$(PHASE29_INTEGRATION_PATH)"
+
+verify-reliability-integration: inspect-reliability-experiment
+
+record-reliability-broker-failure:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" && test -n "$(PHASE29_BROKER_BATCH_ID)" && test -n "$(PHASE29_BROKER_FAILURE_LOG)" && test -n "$(PHASE29_BROKER_EXIT_CODE)" || { echo "Supply the D integration/stream, failed batch, log and nonzero exit code."; exit 1; }
+	$(PHASE29_CLI) record-broker-failure --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" --batch-id "$(PHASE29_BROKER_BATCH_ID)" --log "$(PHASE29_BROKER_FAILURE_LOG)" --exit-code "$(PHASE29_BROKER_EXIT_CODE)"
+
+verify-reliability-outage:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" && test -n "$(PHASE29_OUTAGE_EVIDENCE)" || { echo "Supply D integration, stream and new output path."; exit 1; }
+	$(PHASE29_CLI) verify-outage --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" --output "$(PHASE29_OUTAGE_EVIDENCE)"
+
+inspect-streaming-state:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" || { echo "Supply PHASE29_INTEGRATION_PATH."; exit 1; }
+	$(PHASE29_CLI) inspect-state --integration "$(PHASE29_INTEGRATION_PATH)"
+
+inspect-source-retention:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_CURRENT_FENCE)" || { echo "Supply PHASE29_INTEGRATION_PATH and PHASE29_CURRENT_FENCE."; exit 1; }
+	$(PHASE29_CLI) inspect-retention --integration "$(PHASE29_INTEGRATION_PATH)" --current-fence "$(PHASE29_CURRENT_FENCE)"
+
+inspect-reliability-experiment:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" || { echo "Supply PHASE29_INTEGRATION_PATH and PHASE29_STREAM_PATH."; exit 1; }
+	$(PHASE29_CLI) observe --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" $(if $(PHASE29_OBSERVATION_OUTPUT),--output "$(PHASE29_OBSERVATION_OUTPUT)",)
+
+build-reliability-dossier:
+	@test -n "$(PHASE29_READY_OFFSETS_LOG)" || { echo "Supply PHASE29_READY_OFFSETS_LOG from feature-kafka-offsets."; exit 1; }
+	@test -n "$(PHASE29_A_INTEGRATION)" && test -n "$(PHASE29_B_INTEGRATION)" && test -n "$(PHASE29_C_INTEGRATION)" && test -n "$(PHASE29_D_INTEGRATION)" && test -n "$(PHASE29_A_STREAM)" && test -n "$(PHASE29_B_STREAM)" && test -n "$(PHASE29_C_STREAM)" && test -n "$(PHASE29_D_STREAM)" && test -n "$(PHASE29_OUTAGE_EVIDENCE)" && test -n "$(PHASE29_CURRENT_FENCE)" || { echo "Supply all Phase 29 integration/stream paths, outage evidence and current Kafka fence."; exit 1; }
+	$(PHASE29_CLI) build-dossier --a-integration "$(PHASE29_A_INTEGRATION)" --b-integration "$(PHASE29_B_INTEGRATION)" --c-integration "$(PHASE29_C_INTEGRATION)" --d-integration "$(PHASE29_D_INTEGRATION)" --a-stream "$(PHASE29_A_STREAM)" --b-stream "$(PHASE29_B_STREAM)" --c-stream "$(PHASE29_C_STREAM)" --d-stream "$(PHASE29_D_STREAM)" --outage-evidence "$(PHASE29_OUTAGE_EVIDENCE)" --candidate "$(PHASE29_CANDIDATE)" --current-transaction-fence "$(PHASE29_CURRENT_FENCE)" --current-ready-offset-log "$(PHASE29_READY_OFFSETS_LOG)" --root "$(PHASE29_DOSSIER_ROOT)"
+
+inspect-reliability-dossier:
+	@test -n "$(PHASE29_DOSSIER_PATH)" || { echo "Supply PHASE29_DOSSIER_PATH."; exit 1; }
+	$(PHASE29_CLI) inspect-dossier --path "$(PHASE29_DOSSIER_PATH)"
+
+.PHONY: compare-reliability-experiments
+compare-reliability-experiments:
+	@test -n "$(PHASE29_BASELINE_OBSERVATION)" && test -n "$(PHASE29_CHANGED_OBSERVATION)" || { echo "Supply saved baseline and changed-workload observation JSON paths."; exit 1; }
+	$(PHASE29_CLI) compare --baseline "$(PHASE29_BASELINE_OBSERVATION)" --changed "$(PHASE29_CHANGED_OBSERVATION)"
+
+.PHONY: record-reliability-backlog record-reliability-backpressure
+record-reliability-backlog:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" && test -n "$(PHASE29_BACKLOG_LABEL)" || { echo "Supply integration, stream and controlled backlog label."; exit 1; }
+	$(PHASE29_CLI) record-backlog --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" --label "$(PHASE29_BACKLOG_LABEL)"
+
+record-reliability-backpressure:
+	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" && test -n "$(PHASE29_BROKER_BATCH_ID)" || { echo "Supply integration, stream and pending batch ID."; exit 1; }
+	$(PHASE29_CLI) record-backpressure --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" --batch-id "$(PHASE29_BROKER_BATCH_ID)"

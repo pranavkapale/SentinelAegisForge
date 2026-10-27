@@ -46,6 +46,9 @@ object TransactionRollingFeatureApp {
       RollingFeatureProgressReporter.report(
         query.recentProgress.toVector.map(RollingFeatureProgress.from)
       )
+      query.recentProgress.foreach(batch =>
+        println(s"Rolling feature progress JSON: ${batch.json}")
+      )
       println(
         s"Rolling features completed: source=${config.deduplicatedDeltaPath} target=${config.featureDeltaPath} checkpoint=${config.checkpointLocation} txnAppId=${config.deltaTxnAppId} watermarkDelay=${config.watermarkDelay} stateStore=${RollingFeatureConfig.RequiredStateStoreProvider}"
       )

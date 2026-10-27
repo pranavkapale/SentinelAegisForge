@@ -12,7 +12,8 @@ final case class StatisticalFeatureConfig(
     deltaTxnAppId: String,
     watermarkDelay: String,
     inactivityTimeout: Duration,
-    sparkMaster: String
+    sparkMaster: String,
+    failAfterDeltaBatchId: Option[Long] = None
 ) {
   require(sourceDeltaPath.trim.nonEmpty)
   require(targetDeltaPath.trim.nonEmpty)
@@ -21,6 +22,7 @@ final case class StatisticalFeatureConfig(
   require(watermarkDelay.trim.nonEmpty)
   require(!inactivityTimeout.isZero && !inactivityTimeout.isNegative)
   require(sparkMaster.trim.nonEmpty)
+  require(failAfterDeltaBatchId.forall(_ >= 0L))
 }
 
 object StatisticalFeatureConfig {

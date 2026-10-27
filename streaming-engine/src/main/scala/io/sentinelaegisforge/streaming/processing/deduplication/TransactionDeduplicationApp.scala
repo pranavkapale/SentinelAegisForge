@@ -43,6 +43,7 @@ object TransactionDeduplicationApp {
       query.awaitTermination()
       val progress = query.recentProgress.toVector.map(DeduplicationProgress.from)
       DeduplicationProgressReporter.report(progress)
+      query.recentProgress.foreach(batch => println(s"Deduplication progress JSON: ${batch.json}"))
       println(
         s"Transaction deduplication completed: source=${config.validatedDeltaPath} target=${config.deduplicatedDeltaPath} txnAppId=${config.deltaTxnAppId} watermarkDelay=${config.watermarkDelay}"
       )

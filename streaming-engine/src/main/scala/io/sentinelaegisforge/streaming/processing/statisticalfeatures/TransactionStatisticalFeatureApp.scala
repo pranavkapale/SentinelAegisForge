@@ -5,7 +5,10 @@ import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.streaming.Trigger
 
 import io.sentinelaegisforge.streaming.kafka.ingestion.TransactionSparkSession
-import io.sentinelaegisforge.streaming.persistence.delta.TransactionStatisticalFeatureDeltaSink
+import io.sentinelaegisforge.streaming.persistence.delta.{
+  DeltaPostCommitHook,
+  TransactionStatisticalFeatureDeltaSink
+}
 import io.sentinelaegisforge.streaming.processing.customerstate.DurationArgument
 
 object TransactionStatisticalFeatureApp {
@@ -36,7 +39,10 @@ object TransactionStatisticalFeatureApp {
       )
       val sink = new TransactionStatisticalFeatureDeltaSink(
         config.targetDeltaPath,
-        config.deltaTxnAppId
+        config.deltaTxnAppId,
+        config.failAfterDeltaBatchId
+          .map(DeltaPostCommitHook.FailAfterBatch.apply)
+          .getOrElse(DeltaPostCommitHook.NoOp)
       )
       val query = features.writeStream
         .queryName("transaction-customer-statistical-features")
@@ -73,45 +79,64 @@ object TransactionStatisticalFeatureApp {
       if (unsupported.nonEmpty)
         Left(s"Unsupported arguments: ${unsupported.toVector.sorted.mkString(", ")}")
       else
-        DurationArgument
-          .parse(
+        for {
+          inactivityTimeout <- DurationArgument.parse(
             values.getOrElse(
               "inactivity-timeout",
               sys.env.getOrElse("STATISTICAL_FEATURE_INACTIVITY", "24 hours")
             )
           )
-          .map { inactivityTimeout =>
-            StatisticalFeatureConfig(
-              sourceDeltaPath = values.getOrElse(
-                "source-delta-path",
-                StatisticalFeatureConfig.DefaultSourceDeltaPath
-              ),
-              targetDeltaPath = values.getOrElse(
-                "target-delta-path",
-                StatisticalFeatureConfig.DefaultTargetDeltaPath
-              ),
-              checkpointLocation = values.getOrElse(
-                "checkpoint-location",
-                StatisticalFeatureConfig.DefaultCheckpointLocation
-              ),
-              deltaTxnAppId = values.getOrElse(
-                "delta-txn-app-id",
-                StatisticalFeatureConfig.DefaultTxnAppId
-              ),
-              watermarkDelay = values.getOrElse(
-                "watermark-delay",
-                sys.env.getOrElse(
-                  "WATERMARK_DELAY",
-                  StatisticalFeatureConfig.DefaultWatermarkDelay
-                )
-              ),
-              inactivityTimeout = inactivityTimeout,
-              sparkMaster =
-                values.getOrElse("spark-master", StatisticalFeatureConfig.DefaultSparkMaster)
-            )
-          }
+          failAfter <- parseOptionalBatchId(values.get("fail-after-delta-batch-id"))
+        } yield {
+          StatisticalFeatureConfig(
+            sourceDeltaPath = values.getOrElse(
+              "source-delta-path",
+              StatisticalFeatureConfig.DefaultSourceDeltaPath
+            ),
+            targetDeltaPath = values.getOrElse(
+              "target-delta-path",
+              StatisticalFeatureConfig.DefaultTargetDeltaPath
+            ),
+            checkpointLocation = values.getOrElse(
+              "checkpoint-location",
+              StatisticalFeatureConfig.DefaultCheckpointLocation
+            ),
+            deltaTxnAppId = values.getOrElse(
+              "delta-txn-app-id",
+              StatisticalFeatureConfig.DefaultTxnAppId
+            ),
+            watermarkDelay = values.getOrElse(
+              "watermark-delay",
+              sys.env.getOrElse(
+                "WATERMARK_DELAY",
+                StatisticalFeatureConfig.DefaultWatermarkDelay
+              )
+            ),
+            inactivityTimeout = inactivityTimeout,
+            sparkMaster =
+              values.getOrElse("spark-master", StatisticalFeatureConfig.DefaultSparkMaster),
+            failAfterDeltaBatchId = failAfter
+          )
+        }
     }
   }
+
+  private def parseOptionalBatchId(value: Option[String]): Either[String, Option[Long]] =
+    value match {
+      case None      => Right(None)
+      case Some(raw) =>
+        try {
+          val parsed = raw.toLong
+          Either.cond(
+            parsed >= 0L,
+            Some(parsed),
+            "fail-after-delta-batch-id must be non-negative"
+          )
+        } catch {
+          case _: NumberFormatException =>
+            Left(s"fail-after-delta-batch-id must be an integer, received: $raw")
+        }
+    }
 
   private val SupportedArguments = Set(
     "source-delta-path",
@@ -120,6 +145,7 @@ object TransactionStatisticalFeatureApp {
     "delta-txn-app-id",
     "watermark-delay",
     "inactivity-timeout",
-    "spark-master"
+    "spark-master",
+    "fail-after-delta-batch-id"
   )
 }

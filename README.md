@@ -9,7 +9,7 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 28 — Stateful Streaming to Research Shadow Integration**. An isolated three-wave local run now connects newly published transactions to the existing Scala validated, deduplicated, rolling and statistical Delta stages, then to commit-aware `features.ready` Kafka delivery and bounded research-only inference. Its 1,500 event IDs reconciled across durable stages; this is a controlled `AvailableNow` integration experiment, not a continuous deployment or production latency measurement. The Phase 18 model outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no serving or payment enforcement exists. See [stateful streaming to shadow integration](docs/architecture/stateful-streaming-shadow-integration.md).
+The repository is in **Phase 29 — Stateful Streaming Reliability & Local Capacity Characterization**. Four isolated real Scala-to-research experiments reconcile 1,500, 2,000, 30 and 30 events. They demonstrate statistical post-commit failure/restart, retained versus expired event-time state, Kafka outage recovery and bounded research backlog drain, with hashed evidence and actual Spark progress. Measurements describe bounded local `AvailableNow` invocations; production capacity, availability and online latency remain unproven. The Phase 18 model outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no serving or payment enforcement exists. See [stateful streaming reliability](docs/architecture/stateful-streaming-reliability.md).
 
 ## Local development
 

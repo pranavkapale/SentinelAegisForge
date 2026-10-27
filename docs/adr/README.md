@@ -67,3 +67,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-040: Kafka-triggered research shadow inference](ADR-040-kafka-triggered-research-shadow-inference.md)
 - [ADR-041: Incremental shadow operations and backpressure](ADR-041-incremental-shadow-operations-and-backpressure.md)
 - [ADR-042: Stateful streaming features to research shadow integration](ADR-042-stateful-streaming-to-shadow-integration.md)
+- [ADR-043: Stateful streaming reliability and local capacity characterization](ADR-043-stateful-streaming-reliability-and-capacity.md)
