@@ -2,6 +2,12 @@
 
 ## Current Phase
 
+Phase 32 — Evidence-Led Portfolio Finalization & Technical Walkthrough
+
+Phase 32 is complete as a documentation-only milestone. Current architecture, evidence navigation, a recorded event trace, recovery boundaries, reproducibility levels and interview pathways are consolidated under `docs/portfolio/`. No application, dependency, runtime, model, Registry, checkpoint or historical evidence contract changes. Verification for this milestone is recorded in the appended Phase 32 entry; the 327 Python / 122 Scala regression baseline remains the executed Phase 31 result.
+
+Historical Phase 31 closure (preserved):
+
 Phase 31 — Consistent Recovery Bundle & Isolated Restore
 
 Phase 31 has completed the user-authorized Docker-based live restore: **VERIFIED_RESTORED** for the selected synthetic lineage. `backup_isolated_storage/` is a **same-disk simulation**, so independent-media/disk-loss recovery remains **PARTIALLY_VERIFIED** rather than fully established. Docker supplies an isolated absolute-path namespace; all source and restored services are stopped and volumes preserved. No Phase 32 work has started.
@@ -1035,3 +1041,20 @@ not establish survival of physical disk loss. No Phase 32 or roadmap W2–W8 wor
   exactly-once, production fraud-quality or RPO/RTO claim. Original environment preserved.
 
 - Final closure observation `2026-10-29T18:43:01.551355+00:00`: backup age **79253.675 seconds** on the host clock, not an RPO measurement. `.local/phase31/closure-observations.json` SHA-256 `0038f8837121c32777d08b7198ab61730e698cb472128e1263dfddf21fa6d43a` binds the rehearsal and final regression logs. Docker reports no running containers; source volume creation identity remains `2026-09-25T15:48:24Z`. Final `git diff --check` passes.
+
+## Phase 32 — Portfolio finalization
+
+Documentation milestone dated 2026-10-31, inspected from clean revision `9763be9`.
+
+- Reorganized the root README around the current system, six engineering contributions, technology responsibilities, demonstrated guarantees and visible limitations. Detailed developer commands remain indexed to existing guides and Make targets.
+- Added five portfolio documents: entry/reproduction guide, architecture/event walkthrough, state correctness and recovery, claim-to-evidence index, and three-/ten-/twenty-minute interview defense with 18 technical questions.
+- Repaired ADR index omissions 030–038 without changing any accepted ADR. Clarified implemented research inference versus absent production serving in the overview; preserved phase history and all six Phase 30 assessment documents.
+- Read-only tracing of actual Phase 29 C event `737d2bdb-7a4a-43e7-92bf-ba3cb29e9b52` followed plan → transaction Kafka partition 0/offset 1691 → four Delta rows → first-visible statistical version 1 → ready ID `c3790967630e6231e86f3c303e92814bcc10653997ea4573251edceb5ffdb014` → feature Kafka partition 1/offset 3056 → durable receipt/request → existing SCORED result. No model invocation, publication or private-truth read occurred in this trace.
+- Numerical claims retain their scope: Phase 29 3,560 reconciled events and 2,393 matched probabilities; Phase 31 23 dependency nodes, 5,006 local files, 424 Kafka archive entries, 30 restored events and 30 comparisons with zero mismatches. Same-disk Docker restore remains `VERIFIED_RESTORED`; independent-media recovery remains `PARTIALLY_VERIFIED`.
+- The model remains `REGISTERED_RESEARCH_ONLY`, `production_eligible=false`, `NOT_ELIGIBLE_FOR_PROMOTION`. Only VAL001–003 are VERIFIED; VAL004–010 remain NOT_ESTABLISHED. Later research/restore evidence does not rewrite the governing dossier.
+- Documentation verification passed: a temporary standard-library audit (`python3 /tmp/sentinel_phase32_audit.py`) checked 91 Markdown documents / 890 references (457 in the nine changed documents), local relative paths and heading anchors, fenced blocks, 45 referenced Make targets and ten shell blocks (`bash -n`). External URLs were classified, not network-probed. Nineteen existing historical local-artifact link occurrences remain explicitly local-only in the untouched Phase 30 assessment; none were added to portfolio entry points. Two new path/anchor errors were corrected before the passing audit.
+- Read-only evidence checks passed: Phase 29 manifest plus all eleven bound artifact hashes; Phase 31 rehearsal manifest plus seven bound artifact hashes; Phase 18 assessment hash and all ten criterion statuses. The existing `stateful_shadow_integration.cli trace` was executed using the module's Python with `-B` and explicit retained integration/stream/event arguments; no broker, Spark or scoring process was started.
+- Reviewed the Mermaid/text diagrams against the source flow, including the separate offline prediction-ledger monitoring path. Make parameter names and initialization order were checked against the actual Makefile/CLI. Scope checks confirm exactly nine Markdown files changed, every accepted ADR body and all six Phase 30 assessments unchanged, and the full prior project-state history preserved. `git diff --check` passed. No full Python/Scala regression or expensive live experiment rerun is claimed for Phase 32; 327 Python and 122 Scala tests remain the historical Phase 31 result.
+- Evidence accessibility is explicit: source/tests/ADRs are committed; ordinary tests are Docker-independent; bounded integration needs explicit local prerequisites; historical replay/restore requires retained compatible artifacts and logical paths. New portfolio links never advertise ignored `.local` files as repository downloads.
+
+Phase 32 adds no production operational guarantee. No Phase 33 work has started.

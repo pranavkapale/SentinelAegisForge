@@ -2,6 +2,31 @@
 
 ## Current architecture
 
+The current platform is a bounded local streaming and ML research system. [Portfolio walkthrough](../portfolio/architecture-walkthrough.md) follows one recorded event; [evidence index](../portfolio/evidence-index.md) links mechanisms, tests, ADRs and results without requiring the historical phase reports.
+
+```text
+synthetic plan → customer-keyed Kafka/Avro → Spark validation → validated Delta
+ → event-time event-ID dedup → deduplicated Delta
+ → customer rolling state → rolling v2 Delta
+ → customer-currency Welford state → statistical v2 Delta commits
+ → first-visible commit discovery/outbox → features.ready Kafka
+ → durable research receipts → independent research worker → durable predictions
+
+Separate advisory branch: statistical v2 → deterministic CLEAR / REVIEW Delta
+Separate governance: dataset → temporal training → frozen candidate → MLflow Registry
+Separate monitoring: pinned features/model → offline prediction ledger + independent outcomes
+ → outcome/distribution monitoring and investigation
+Separate recovery: quiesced authority bundle → isolated restore → pending-work resume
+```
+
+The Scala advisory branch and Python research model are independent and non-enforcing. No payment action or production model service exists. The model remains `REGISTERED_RESEARCH_ONLY`, `production_eligible=false`, and `NOT_ELIGIBLE_FOR_PROMOTION`; later research execution does not establish the missing Phase 18 deployment/quality criteria.
+
+Phase 31 restored a selected lineage in an isolated Docker namespace and resumed 30 events with zero probability mismatches. Its same-disk backup establishes `VERIFIED_RESTORED` for that simulation, while independent-media recovery remains `PARTIALLY_VERIFIED`. See [recovery guide](recovery-bundle-and-restore.md), [ADR-044](../adr/ADR-044-consistent-recovery-bundle-and-isolated-restore.md) and the historical [Phase 30 assessment](../assessments/phase30/executive-assessment.md). Phase 32 improves navigation and presentation only; it adds no runtime capability or production guarantee.
+
+## Implementation history and module boundaries
+
+The following phase descriptions preserve their original scope; a capability absent in an early phase can be introduced by a later one. Current entry points are above.
+
 Phase 29 verifies recovery and bounded local workload behavior of the real Scala-to-research shadow path across two independently buildable modules in one repository:
 
 - `streaming-engine` is a Scala 2.13/JDK 21 build with a version 1 transaction domain contract, pure candidate validation, a deterministic seeded simulator, explicit Apache Avro mapping, a bounded registry-backed Kafka producer, Spark 4.2.0 Structured Streaming ingestion, a local Delta 4.4.0 validated-record audit table, a separate watermark-bounded event-ID deduplication table, a customer-keyed activity lifecycle, two prior-only rolling customer features, prior-observed statistical amount features, and stateless deterministic advisory risk decisions. It contains no ML or enforcement capability.
@@ -10,7 +35,7 @@ Phase 29 verifies recovery and bounded local workload behavior of the real Scala
 - `contracts/events/transaction-event-v1.avsc` is the canonical Avro value schema. Published records use UTF-8 `customer_id` keys and registry-managed Avro values.
 - Root verification, repository hygiene, baseline CI, this architecture overview, and architecture decision records provide shared engineering conventions.
 
-The Scala module can publish bounded deterministic samples to local Kafka, consume them with registry-aware validation, durably append every validated record plus Kafka coordinates, and derive a separate event-ID-deduplicated Delta table. Phase 8 independently appends customer activity lifecycle snapshots; Phase 9 appends per-transaction prior-only event-time rolling features; Phase 10 consumes those feature rows to append prior-observed Welford amount statistics. Retried micro-batches use table-specific stable Delta transaction identifiers. Spark 4.2 requires RocksDB for these `transformWithState` queries. Monetary feature semantic v2 uses customer+currency membership: rolling velocity stays customer-wide, rolling monetary sums use the current currency, and Welford state is independently keyed and expired per customer-currency pair. Raw amounts in different currencies are never combined in these feature baselines; no FX conversion exists. Fresh v2 output/checkpoint/transaction-ID lineages supersede the old Phase 9/10 monetary semantics without rewriting historical rows (see [ADR-020](../adr/ADR-020-currency-safe-monetary-feature-semantics.md)). These boundaries do not provide lifetime uniqueness, retrospective feature correction, or a general end-to-end exactly-once guarantee. Module B now consumes already materialized local corrected feature artifacts; no online model/control-plane integration exists.
+The Scala module can publish bounded deterministic samples to local Kafka, consume them with registry-aware validation, durably append every validated record plus Kafka coordinates, and derive a separate event-ID-deduplicated Delta table. Phase 8 independently appends customer activity lifecycle snapshots; Phase 9 appends per-transaction prior-only event-time rolling features; Phase 10 consumes those feature rows to append prior-observed Welford amount statistics. Retried micro-batches use table-specific stable Delta transaction identifiers. Spark 4.2 requires RocksDB for these `transformWithState` queries. Monetary feature semantic v2 uses customer+currency membership: rolling velocity stays customer-wide, rolling monetary sums use the current currency, and Welford state is independently keyed and expired per customer-currency pair. Raw amounts in different currencies are never combined in these feature baselines; no FX conversion exists. Fresh v2 output/checkpoint/transaction-ID lineages supersede the old Phase 9/10 monetary semantics without rewriting historical rows (see [ADR-020](../adr/ADR-020-currency-safe-monetary-feature-semantics.md)). These boundaries do not provide lifetime uniqueness, retrospective feature correction, or a general end-to-end exactly-once guarantee. Module B consumes materialized corrected feature artifacts. The later Phase 24–29 commit-aware Kafka research handoff is implemented; production model serving and payment enforcement remain absent.
 
 Phase 11 consumes only `transaction_statistical_features_v2` with pure ordered R001 velocity, R002 positive READY z-score and R003 combined rules. It preserves every source feature/lineage column and appends CLEAR/REVIEW, ordered rule/reason arrays and version/fingerprint to `transaction_risk_decisions`. There is no stateful operator or RocksDB setting in this query. Explicit thresholds are engineering policy, not production calibration. Decisions are advisory data, not payment actions or numeric scores. A dedicated checkpoint and Delta transaction identity protect source resume and batch retries, not lifetime event+policy uniqueness. See [deterministic risk engine](deterministic-risk-engine.md), [ADR-021](../adr/ADR-021-deterministic-risk-policy.md) and [ADR-022](../adr/ADR-022-risk-policy-versioning.md).
 
@@ -52,7 +77,7 @@ Phase 29 reuses that path in four independent bounded lineages: clean baseline, 
 
 ## Target architecture
 
-The following is a future direction, not a description of implemented behavior:
+The original roadmap below mixes now-implemented transport/features/offline monitoring with a still-deferred operational feedback loop. Kafka, Spark, Delta, delayed evaluation and research inference already exist as described above. Automated retraining, approved-model promotion and model integration into the transaction-risk path remain future work:
 
 ```text
 transactions
@@ -74,7 +99,7 @@ approved model
 streaming engine
 ```
 
-Runtime and data technologies will be introduced only when their requirements and operational semantics can be evaluated.
+Future runtime and data technologies require concrete requirements and explicit operational evaluation. The roadmap is not evidence of approved models, production serving or automated retraining.
 
 ## Engineering principles
 
