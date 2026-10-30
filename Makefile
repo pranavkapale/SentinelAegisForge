@@ -803,3 +803,20 @@ record-reliability-backlog:
 record-reliability-backpressure:
 	@test -n "$(PHASE29_INTEGRATION_PATH)" && test -n "$(PHASE29_STREAM_PATH)" && test -n "$(PHASE29_BROKER_BATCH_ID)" || { echo "Supply integration, stream and pending batch ID."; exit 1; }
 	$(PHASE29_CLI) record-backpressure --integration "$(PHASE29_INTEGRATION_PATH)" --stream "$(PHASE29_STREAM_PATH)" --batch-id "$(PHASE29_BROKER_BATCH_ID)"
+
+# Phase 31: explicit operator actions; none are dependencies of ordinary verification.
+RECOVERY_CLI = cd model-control-plane && uv run --frozen python -m sentinelaegisforge_control_plane.recovery.cli
+RECOVERY_ARGS ?=
+.PHONY: recovery inspect-recovery-bundle inspect-restored-research-lineage inspect-recovery-rehearsal
+recovery:
+	@test -n "$(RECOVERY_ACTION)" || { echo "Supply RECOVERY_ACTION and explicit absolute paths in RECOVERY_ARGS; see recovery documentation."; exit 1; }
+	$(RECOVERY_CLI) $(RECOVERY_ACTION) $(RECOVERY_ARGS)
+
+inspect-recovery-bundle:
+	$(RECOVERY_CLI) verify --bundle "$(RECOVERY_BUNDLE)"
+
+inspect-restored-research-lineage:
+	$(RECOVERY_CLI) preflight-docker --output "$(RECOVERY_OUTPUT)"
+
+inspect-recovery-rehearsal:
+	$(RECOVERY_CLI) inspect-rehearsal --output "$(RECOVERY_OUTPUT)"

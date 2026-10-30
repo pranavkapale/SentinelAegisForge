@@ -68,3 +68,4 @@ What becomes easier, harder, required, or intentionally deferred?
 - [ADR-041: Incremental shadow operations and backpressure](ADR-041-incremental-shadow-operations-and-backpressure.md)
 - [ADR-042: Stateful streaming features to research shadow integration](ADR-042-stateful-streaming-to-shadow-integration.md)
 - [ADR-043: Stateful streaming reliability and local capacity characterization](ADR-043-stateful-streaming-reliability-and-capacity.md)
+- [ADR-044: Consistent recovery bundle and isolated restoration](ADR-044-consistent-recovery-bundle-and-isolated-restore.md)

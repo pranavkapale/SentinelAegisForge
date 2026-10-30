@@ -9,7 +9,9 @@ SentinelAegisForge is intended to become an enterprise-style platform for real-t
 
 ## Current status
 
-The repository is in **Phase 29 — Stateful Streaming Reliability & Local Capacity Characterization**. Four isolated real Scala-to-research experiments reconcile 1,500, 2,000, 30 and 30 events. They demonstrate statistical post-commit failure/restart, retained versus expired event-time state, Kafka outage recovery and bounded research backlog drain, with hashed evidence and actual Spark progress. Measurements describe bounded local `AvailableNow` invocations; production capacity, availability and online latency remain unproven. The Phase 18 model outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no serving or payment enforcement exists. See [stateful streaming reliability](docs/architecture/stateful-streaming-reliability.md).
+**Phase 29 — Stateful Streaming Reliability & Local Capacity Characterization** established the following historical baseline. Four isolated real Scala-to-research experiments reconcile 1,500, 2,000, 30 and 30 events. They demonstrate statistical post-commit failure/restart, retained versus expired event-time state, Kafka outage recovery and bounded research backlog drain, with hashed evidence and actual Spark progress. Measurements describe bounded local `AvailableNow` invocations; production capacity, availability and online latency remain unproven. The Phase 18 model outcome remains `NOT_ELIGIBLE_FOR_PROMOTION`; no serving or payment enforcement exists. See [stateful streaming reliability](docs/architecture/stateful-streaming-reliability.md).
+
+**Phase 31 — Consistent Recovery Bundle & Isolated Restore** now demonstrates a completed Docker-based recovery of 30 synthetic events, including restored RocksDB state and pending research inference. The user-selected `backup_isolated_storage/` simulates external storage on the same disk; physical disk-loss recovery remains unverified. See [recovery contracts and operator commands](docs/architecture/recovery-bundle-and-restore.md). Historical Phase 29/30 evidence remains preserved.
 
 ## Local development
 

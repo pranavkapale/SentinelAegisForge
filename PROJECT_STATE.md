@@ -2,7 +2,11 @@
 
 ## Current Phase
 
-Phase 29 — Stateful Streaming Reliability, Fault Recovery & Local Capacity Characterization
+Phase 31 — Consistent Recovery Bundle & Isolated Restore
+
+Phase 31 has completed the user-authorized Docker-based live restore: **VERIFIED_RESTORED** for the selected synthetic lineage. `backup_isolated_storage/` is a **same-disk simulation**, so independent-media/disk-loss recovery remains **PARTIALLY_VERIFIED** rather than fully established. Docker supplies an isolated absolute-path namespace; all source and restored services are stopped and volumes preserved. No Phase 32 work has started.
+
+Historical Phase 29 verification (preserved):
 
 Phases 0–28 remain preserved and verified. Phase 29 is fully verified within its bounded local contract: four isolated real Scala-to-research experiments reconcile 1,500, 2,000, 30 and 30 transactions; an actual statistical post-commit failure recovers with the same RocksDB checkpoint and Delta transaction application ID; observed state retention/expiry, broker recovery and research backpressure are independently inspected. The immutable local dossier records real Spark progress, source retention, partition composition, file sizes and invocation timings. All 122 Scala tests/22 suites and 284 Python tests pass with Kafka/Schema Registry stopped. The candidate remains research-only and the Phase 18 dossier production-ineligible. These observations establish no production capacity, availability, online latency or payment guarantee. No Phase 30 work has started.
 
@@ -880,7 +884,7 @@ No current Python, Scala or Phase 24–29 availability/research-verification fai
 - ML runtime contract.
 - Observability and reproducible performance benchmarking.
 
-## Next Planned Capability
+## Historical Next Planned Capability (Phase 29)
 
 Phase 29 closes the controlled local reliability matrix and immutable evidence dossier. Stateful post-commit restart, source-to-result equality, source-retention gates and bounded downstream recovery passed within the recorded lineages. Continuous operation, production capacity/latency/availability, atomic cross-system effects, governed checkpoint migration, fraud-model quality, production approval, serving and payment action remain unproven and deferred. No Phase 30 work has started.
 
@@ -894,3 +898,140 @@ Documentation-only assessment completed against revision `484c410`, initially wi
 - Conclusions: substantial bounded research portfolio; production deployment readiness and real fraud-model readiness remain NOT_ESTABLISHED. Model `sentinelaegisforge-offline-fraud-logistic` v1 remains `REGISTERED_RESEARCH_ONLY`, `production_eligible=false`; Phase 18 remains `NOT_ELIGIBLE_FOR_PROMOTION`.
 - Recommended next investment, not implemented: one consistent local recovery bundle and isolated clean-environment restore rehearsal. Retained-process replay is not permanent-storage-loss recovery; local hashes are not authorization; required historical sources/checkpoints remain recovery dependencies. No Phase 31 implementation or production approval is introduced.
 - Documentation verification: 311 references across the six assessment documents passed local-path/reference/heading checks; `git diff --check` and a seven-file scope check passed. An append-only comparison confirmed every pre-existing byte of this file was preserved; final Phase 29 manifest/artifact hashes remained unchanged.
+
+
+## Phase 31 — Consistent recovery bundle and Docker restore closure
+
+The user-authorized **same-disk simulated-storage Docker rehearsal is complete**:
+`docker_simulation_status=VERIFIED_RESTORED`. The wider independent-media recovery criterion
+remains `PARTIALLY_VERIFIED`: `backup_isolated_storage/` shares the source host/disk and does
+not establish survival of physical disk loss. No Phase 32 or roadmap W2–W8 work is implemented.
+
+### Source selection and consistent cutoff
+
+- Pre-change worktree clean at `431e5ea` (Phase 30 assessment). Inspected the six Phase 30
+  assessment documents, Phase 29 contracts, complete selected data/model dependency closure,
+  Kafka/Registry volume configuration and existing checkpoint/retention/inspection interfaces.
+- New 30-event derivative, seed **31001**, 3 customers, 18 USD/12 EUR, base `2030-01-04T00:00:00Z`,
+  three chronological ten-event waves. Corpus `58f2207f38c947b1e06ae844dae2d9af3ea650ea5b774aaa090c221a53eee881`.
+- Integration `17cd6292331bbc8e1daa570f44bf00fcc3b9c252781afa8ac9c13f8207cb5267`; stream `5ae794de8967be0f85d150dc45237464be6906f6cda538d27d130608ad8952af`.
+- Cutoff `7d14140d7bdbb9190db84cad13447684b7d937f6945a58c5cfb56f56e80b3b91` (`recovery-cutoff-v1`), captured `2026-10-28T20:42:07.876463+00:00`.
+- Quiesced publication/processing/inference; no incomplete `.pending-*` claims. Enumerated
+  host JVM/Python writers (excluding the identified editor-only Metals service), stopped the
+  project sbt server and cleanly stopped source Kafka/Registry. Stable inventories checked
+  before/after capture and build. Source volume **sentinelaegisforge_kafka-data** retained.
+- Cutoff: validated/deduplicated/rolling **20** rows each, statistical **10** rows; ten ready
+  notifications accepted, **5** terminal results and **5** genuinely pending results.
+  Wave 1 statistical processing and wave 2 publication remained pending.
+- **23** explicit dependency nodes, **5,006** local files and **424** Kafka archive entries.
+  Full broker storage, required retained Delta versions, all four checkpoints/RocksDB,
+  outboxes/journals/receipts/results, model/training/dataset/label provenance, tracking artifacts,
+  original Registry receipt and Phase 18 dossier included. Unrelated Phase 19/22 lineages are
+  explicitly excluded because this selected inference/model closure does not reference them.
+
+### Bundle, copied backup and isolation
+
+- Bundle `49f9b768adaa2aff0246e63d1faf1062e96ed73aea2295c3972fd52499faf347` (`synthetic-recovery-bundle-v1`), **41,560,266 bytes** including
+  manifests and payloads. Copy: `backup_isolated_storage/49f9b768adaa2aff0246e63d1faf1062e96ed73aea2295c3972fd52499faf347`.
+- Payload files SHA-256 `c376929e5e23544fe19ad175cea52cde40ddc68c64536cb85b58386c35ccab0e`.
+- Full Kafka archive SHA-256 `b11879b6c7398762d1b3482070d86d377ab168d5e0a4f4a0984c652e7133b889`.
+- SQLite backup SHA-256 `558c88f3ea1c040abfdccf75921840c2b2c28e2480efafbaf5b7fde760f1752e`.
+- SQLite backup API and integrity check passed; original `delete` journal mode; logical database
+  digest `0c4613c6fd858df6d89db9497f160d61a19c3c01bea93700fbb837783fa9a462` preserved.
+- Final target `.local/phase31/restored-final`; Docker project **sentinel-recovery-phase31final**,
+  new volume **sentinel-recovery-phase31final-kafka-data**, internal network and no published ports.
+  Source and restored services are now stopped; all volumes/evidence retained.
+- Runtime image `sha256:046cfddff8f383d54cdd11a768197a11807db7b3b7ad0742c655a7328e3d0667` contains code/dependencies only: Python 3.13.9, JDK 21.0.12.1,
+  Spark 4.2.0, Delta 4.4.0 and existing frozen Python packages. Actual container mounts inspected
+  before execution. Only restored data at the original absolute paths, read-only backup and new
+  evidence were mounted. No source volume, source `.local`, Docker socket or external network.
+- Offline preflight succeeded with networking disabled, source-only sentinel absent, unchanged
+  historical manifests and no original-storage fallback. Post-run source file inventory remains
+  exactly equal to cutoff; repeated read-only rehearsal inspection and backup rehash passed.
+
+### Restored Kafka, Delta and checkpoint identities
+
+- KRaft cluster `4L6g3nShT-eMCtK--X86sw`, observed node 1 preserved.
+- `transactions.raw` ID `S4jA4kxFR66zvCdvpiA45Q`: beginning offsets **425/736/375**,
+  cutoff/restored pre-resume end offsets **1726/3031/1860** preserved.
+- `features.ready` ID `at-fjc4PSciLLeK-EGcBig`: beginnings **0/0/0**, ends and research
+  committed offsets **3243/3074/3288** preserved before resume. New work advances them separately.
+- `_schemas` ID `unz3oe5KQJamT7A1Py_Ksw`; canonical subject `transactions.raw-value`,
+  version **1**, schema ID **1**, `BACKWARD_TRANSITIVE`, unchanged. Two directly inspected
+  internal NOOP records advanced only `_schemas` from **50** to **52** during Registry startup.
+  All original broker bytes were independently verified offline before startup.
+- `deduplicated` Delta ID `b3a12b98-2df5-4ed6-837d-6078601adbc1`; preserved required versions 0–1, exact row/ID digests and schema/protocol.
+- `rolling` Delta ID `035879a3-1ba3-4ae3-9a44-ff83af59b966`; preserved required versions 0–1, exact row/ID digests and schema/protocol.
+- `statistical` Delta ID `05e9ea1b-d2ad-47c3-9f7a-dbed87524355`; preserved required versions 0–0, exact row/ID digests and schema/protocol.
+- `training` Delta ID `63b8d48b-ea0b-47e2-aec9-ad5c6990d5de`; preserved required versions 0–2, exact row/ID digests and schema/protocol.
+- `validated` Delta ID `0ee5a096-6922-4c92-a19f-98d231fc9dd8`; preserved required versions 0–1, exact row/ID digests and schema/protocol.
+- Validated/deduplicated/rolling/statistical checkpoint paths remain under the original
+  integration's `checkpoints/<stage>`; source progress, query metadata and RocksDB files copied
+  intact. Transaction app IDs remain `phase28-<stage>-17cd6292331bbc8e1daa`. No checkpoint edits,
+  state migration, topic recreation, schema re-registration or Delta history rewriting.
+
+### Actual resumed processing and model evidence
+
+- Resumed statistical batch **2** using original query ID `63ade2d8-8202-441b-8ef1-d538707510df`
+  and checkpoint; batch 3 processed event-time cleanup. Watermark advanced from
+  `2030-01-04T21:26:00Z` to `2030-01-05T21:26:00Z`; one expired state row removed.
+- Retained `(customer-0000, EUR)` history: **3** prior observations; next event
+  `f2dfb4f3-3d8d-44a1-bfbb-56b4f0385197` at `2030-01-05T09:36:00Z` is `READY`.
+  Prior mean **121.20666666666666**, stddev **57.48922536730977**; independent reference
+  stddev **57.489225367309764**, matching within existing tolerance. Expiry deadline
+  `2030-01-05T14:24:00Z` was beyond the observed pre-resume watermark. This proves actual
+  restored-state continuation; no separate expired-and-reactivated example is claimed here.
+- All **30** planned event IDs reconcile at validated, deduplicated, rolling, statistical,
+  ready-event, receipt and terminal-result boundaries. All four final Delta versions are **2**.
+  Three accepted batches, **30** physical notifications, **0** duplicate physical notifications,
+  **0** unexplained missing/duplicate logical results and **0** remaining backlogs; state `IDLE`.
+- All historical Delta versions retain exact rows/IDs; original durable research results and
+  candidate bytes unchanged. **30** restored-model probability comparisons: **0** mismatches,
+  maximum absolute difference **0.0**, tolerance **1e-12**. No retraining/reconstruction.
+- Candidate `b4fff4f1f74818165d04bae094b89f7c7b8dc7367d6e3dad10465b1a6160fadb`, model-tree SHA
+  `c8bdcb0f3d92b0fbd222a5a6bfce1a67d8f207abe26b00c60d86830e5a8fb6fa`, original MLflow run
+  `4c059732f5764d4292c05d50ed5da78b` and Registry version **1** restored unchanged.
+  `REGISTERED_RESEARCH_ONLY`, `production_eligible=false`, Phase 18
+  `NOT_ELIGIBLE_FOR_PROMOTION` remain unchanged.
+
+### Immutable evidence and measured timings
+
+- Rehearsal `4ee05b892aea075c1d2aeb3b9715dfeb352dc0197041675e7aa3280b5af44f35` (`synthetic-recovery-rehearsal-v1`):
+  `.local/phase31/rehearsal-final/rehearsal_manifest.json`, SHA-256
+  `14a52efe4a64ea542aa236fc4e75cf374762527521898c722e848de670474b10`.
+  Manifest binds actual mount/network inspection, broker comparisons, local preflight, resumed
+  reconciliation/state progress and model parity. No prior attempt was silently overwritten.
+- Observed durations (seconds): source quiescence/capture **18.331**, bundle build **4.793**,
+  copied-backup verification/copy **0.267**, initial file extraction **2.124**,
+  independent final backup verification **0.476**, final offline model/lineage preflight **6.688**,
+  final broker startup and identity probe **28.736**, pending stateful query **14.026**,
+  resume/reconcile **91.528** (container execution **98.514**).
+  These are local measurements, not RPO/RTO or performance promises.
+- Initial refusal evidence preserved: directory mtimes differed after tar extraction (all file
+  bytes/modes/owners matched); comparison now excludes directory mtime only. Registry NOOP
+  startup suffix initially triggered strict-offset refusal; actual NOOP records are now checked
+  separately, without weakening application-topic, schema or retained-history checks.
+
+### Regression and failure verification
+
+- **327 Python tests** pass, preserving all 284 previous tests plus **43 recovery tests**.
+  Tests cover archive traversal/links/devices/collisions/expansion, no overwrite, corrupt/missing
+  Kafka payloads and metadata, Delta logs/Parquet, checkpoints/RocksDB, model/journals/receipts/
+  results, SQLite/WAL backup, source mutation, namespace fallback, identity conflicts, manifest
+  corruption and repeat read-only evidence inspection. Existing state/Registry/reconciliation
+  tests remain green; mocked tests are separate from the real Docker rehearsal above.
+- `uv lock --check`, `uv sync --frozen --group dev`, `uv run --frozen pytest`,
+  `uv run --frozen ruff check .`, `uv run --frozen ruff format --check .`,
+  `uv run --frozen mypy src tests`: pass. One existing MLflow/SQLAlchemy deprecation warning.
+- `make verify-python`, `make verify-scala`, `make verify`: pass with Kafka/Registry stopped.
+  `sbt "clean ; compile"`, `sbt "Test / testOnly *"` and `sbt scalafmtCheckAll`
+  also pass: forced **122 tests / 22 suites**, zero failures. No direct dependency, training policy or existing Scala
+  source/configuration was changed.
+- ADR-044 and `docs/architecture/recovery-bundle-and-restore.md` document this boundary.
+  Remaining limitations: independent storage unavailable, path/runtime portability beyond this
+  namespace not guaranteed, cooperating single-writer quiescence only, unsigned local integrity
+  manifests, no online consistent snapshot, no HA/cloud recovery, no production approval,
+  payment action, customer-impacting action, label leakage, automatic retraining, global
+  exactly-once, production fraud-quality or RPO/RTO claim. Original environment preserved.
+
+- Final closure observation `2026-10-29T18:43:01.551355+00:00`: backup age **79253.675 seconds** on the host clock, not an RPO measurement. `.local/phase31/closure-observations.json` SHA-256 `0038f8837121c32777d08b7198ab61730e698cb472128e1263dfddf21fa6d43a` binds the rehearsal and final regression logs. Docker reports no running containers; source volume creation identity remains `2026-09-25T15:48:24Z`. Final `git diff --check` passes.
